@@ -25,6 +25,7 @@ import PaymentFlow from "./screens/PaymentFlow"
 function screenForPath(pathname: string): Screen {
   if (pathname === "/login") return "login"
   if (pathname === "/register") return "register"
+  if (pathname === "/") return "register"
   return "projects"
 }
 
@@ -50,7 +51,8 @@ export default function App() {
   const [booting, setBooting] = useState(true)
 
   useEffect(() => {
-    const handlePopState = () => setScreen(screenForPath(window.location.pathname))
+    const handlePopState = () =>
+      setScreen(screenForPath(window.location.pathname))
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
   }, [])
@@ -65,8 +67,12 @@ export default function App() {
           navigate("projects", true)
       })
       .catch((error: unknown) => {
-        if (!(error instanceof ApiError && error.status === 401))
-          console.error("No se pudo restaurar la sesión.")
+        if (error instanceof ApiError && error.status === 401) {
+          if (window.location.pathname === "/") navigate("register", true)
+          return
+        }
+
+        console.error("No se pudo restaurar la sesión.")
       })
       .finally(() => setBooting(false))
   }, [])

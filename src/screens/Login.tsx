@@ -170,10 +170,6 @@ export default function Login({ navigate, onLogin }: LoginProps) {
                 )}
               </button>
             </div>
-            <p className="mt-1 text-xs text-gray-400">
-              Cuenta seed: example.sponsor@impulsafund.test. Solicita el valor
-              de SEED_SPONSOR_PASSWORD al entorno de desarrollo.
-            </p>
           </div>
 
           {/* Remember */}
