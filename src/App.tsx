@@ -22,8 +22,16 @@ import CampaignPage from "./screens/CampaignPage"
 
 import PaymentFlow from "./screens/PaymentFlow"
 
+function screenForPath(pathname: string): Screen {
+  if (pathname === "/login") return "login"
+  if (pathname === "/register") return "register"
+  return "projects"
+}
+
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("login")
+  const [screen, setScreen] = useState<Screen>(() =>
+    screenForPath(window.location.pathname),
+  )
 
   const [user, setUser] = useState<User | null>(null)
 
@@ -42,16 +50,19 @@ export default function App() {
   const [booting, setBooting] = useState(true)
 
   useEffect(() => {
+    const handlePopState = () => setScreen(screenForPath(window.location.pathname))
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [])
+
+  useEffect(() => {
     api
       .me()
       .then((currentUser) => {
         setUser(currentUser)
 
-        setScreen(
-          currentUser.role === "creator"
-            ? "creator-dashboard"
-            : "sponsor-dashboard",
-        )
+        if (["/", "/login", "/register"].includes(window.location.pathname))
+          navigate("projects", true)
       })
       .catch((error: unknown) => {
         if (!(error instanceof ApiError && error.status === 401))
@@ -61,22 +72,33 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!user) return
-
     api
       .campaigns()
       .then((page) => setCampaigns(page.content))
       .catch(() => undefined)
 
-    if (user.role === "creator")
+    if (user?.role === "creator")
       api
         .drafts()
         .then((page) => setDrafts(page.content))
         .catch(() => undefined)
   }, [user])
 
-  function navigate(nextScreen: Screen) {
+  function navigate(nextScreen: Screen, replace = false) {
     setScreen(nextScreen)
+
+    const publicPaths: Partial<Record<Screen, string>> = {
+      home: "/projects",
+      projects: "/projects",
+      "campaign-page": "/projects",
+      login: "/login",
+      register: "/register",
+    }
+    const path = publicPaths[nextScreen]
+    if (path && window.location.pathname !== path) {
+      if (replace) window.history.replaceState({}, "", path)
+      else window.history.pushState({}, "", path)
+    }
 
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -86,9 +108,7 @@ export default function App() {
 
     setUser(nextUser)
 
-    navigate(
-      nextUser.role === "creator" ? "creator-dashboard" : "sponsor-dashboard",
-    )
+    navigate("projects")
   }
 
   async function handleLogout() {
@@ -103,7 +123,7 @@ export default function App() {
     try {
       await api.logout()
     } finally {
-      navigate("login")
+      navigate("projects")
     }
   }
 
@@ -189,7 +209,7 @@ export default function App() {
             user={user}
           />
         )}
-        {screen === "campaign-page" && (
+        {(screen === "projects" || screen === "campaign-page") && (
           <CampaignPage
             navigate={navigate}
             user={user}

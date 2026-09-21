@@ -10,7 +10,12 @@ import type {
 } from "../types"
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080"
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? "http://localhost:8080" : "")
+
+function normalizeUser(user: User): User {
+  return { ...user, role: String(user.role).toLowerCase() as User["role"] }
+}
 
 export class ApiError extends Error {
   status: number
@@ -67,13 +72,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  me: () => request<User>("/api/auth/me"),
+  me: async () => normalizeUser(await request<User>("/api/auth/me")),
 
-  login: (email: string, password: string, rememberMe: boolean) =>
-    request<AuthResponse>("/api/auth/login", {
+  login: async (email: string, password: string, rememberMe: boolean) => {
+    const response = await request<AuthResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password, rememberMe }),
-    }),
+    })
+    return { ...response, user: normalizeUser(response.user) }
+  },
 
   register: (
     name: string,
@@ -84,7 +91,7 @@ export const api = {
     request<AuthResponse>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({ name, email, password, role }),
-    }),
+    }).then((response) => ({ ...response, user: normalizeUser(response.user) })),
 
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
 

@@ -82,11 +82,7 @@ export default function Register({ navigate, onLogin }: RegisterProps) {
 
       onLogin(response.user)
 
-      navigate(
-        response.user.role === "creator"
-          ? "creator-dashboard"
-          : "sponsor-dashboard",
-      )
+      navigate("projects")
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "EMAIL_ALREADY_IN_USE")
         setEmailError(cause.message)

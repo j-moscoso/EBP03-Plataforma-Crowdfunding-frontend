@@ -37,11 +37,7 @@ export default function Login({ navigate, onLogin }: LoginProps) {
 
       onLogin(response.user)
 
-      navigate(
-        response.user.role === "creator"
-          ? "creator-dashboard"
-          : "sponsor-dashboard",
-      )
+      navigate("projects")
     } catch (cause) {
       setError(
         cause instanceof ApiError

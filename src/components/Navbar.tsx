@@ -15,13 +15,7 @@ export default function Navbar({ user, navigate, onLogout }: NavbarProps) {
         <div className="flex items-center justify-between h-16">
           <button
             onClick={() =>
-              navigate(
-                user?.role === "creator"
-                  ? "creator-dashboard"
-                  : user?.role === "sponsor"
-                    ? "sponsor-dashboard"
-                    : "campaign-page",
-              )
+              navigate("projects")
             }
             className="flex items-center gap-2 font-display font-800 text-xl tracking-tight"
           >
@@ -35,7 +29,7 @@ export default function Navbar({ user, navigate, onLogout }: NavbarProps) {
 
           <div className="hidden md:flex items-center gap-6">
             <button
-              onClick={() => navigate("campaign-page")}
+              onClick={() => navigate("projects")}
               className="text-sm text-gray-600 hover:text-primary font-medium transition-colors"
             >
               Explorar proyectos

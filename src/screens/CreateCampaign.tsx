@@ -188,9 +188,7 @@ export default function CreateCampaign({
             </button>
             <button
               onClick={publish}
-              disabled={
-                saving || publishing || user?.verificationStatus !== "verified"
-              }
+              disabled={saving || publishing}
               className="bg-primary text-white rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               {publishing ? "Publicando..." : "Publicar"}
@@ -201,8 +199,7 @@ export default function CreateCampaign({
           {initialDraft ? "Editar campaña" : "Nueva campaña"}
         </h1>
         <p className="text-sm text-gray-500 mb-6">
-          Los campos de meta, duración y categoría son requeridos. Publicar
-          requiere un creador verificado.
+          Los campos de meta, duración y categoría son requeridos.
         </p>
         {error && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

@@ -1,4 +1,4 @@
-export type Screen = "home" | "register" | "login" | "creator-dashboard" | "sponsor-dashboard" | "create-campaign" | "campaign-page" | "payment-flow"
+export type Screen = "home" | "projects" | "register" | "login" | "creator-dashboard" | "sponsor-dashboard" | "create-campaign" | "campaign-page" | "payment-flow"
 
 export interface User {
   id: string
