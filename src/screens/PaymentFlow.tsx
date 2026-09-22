@@ -38,27 +38,65 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
   const [operationKey] = useState(() => crypto.randomUUID())
 
   useEffect(() => {
-    if (campaignId)
-      api
+    if (!campaignId) {
+      setCampaign(null)
+      return
+    }
 
-        .campaign(campaignId)
-
-        .then(setCampaign)
-
-        .catch(() => setError("No se pudo cargar la campaña."))
+    let current = true
+    setCampaign(null)
+    setError("")
+    api
+      .campaign(campaignId)
+      .then((nextCampaign) => {
+        if (current) setCampaign(nextCampaign)
+      })
+      .catch(() => {
+        if (current) setError("No se pudo cargar la campaña.")
+      })
+    return () => {
+      current = false
+    }
   }, [campaignId])
 
   const selectedReward = campaign?.rewards.find(
     (reward) => reward.id === rewardId,
   )
 
+  const remainingAmount = campaign
+    ? Math.max(
+        campaign.progress.remainingAmount ??
+          campaign.goalAmount - campaign.progress.raisedAmount,
+        0,
+      )
+    : 0
+  const numericAmount = Number(amount)
+
   const canSubmit =
     user?.role === "sponsor" &&
     !!campaignId &&
-    Number(amount) > 0 &&
+    Number.isFinite(numericAmount) &&
+    numericAmount > 0 &&
+    Math.round(numericAmount * 100) === numericAmount * 100 &&
+    numericAmount <= remainingAmount &&
     /^[A-Za-z]{3}$/.test(currency) &&
     paymentMethodId.trim().length > 0 &&
     (!selectedReward || Number(amount) >= selectedReward.minimumAmount)
+
+  function capacityError(limit = remainingAmount) {
+    return `El aporte supera el importe que todavía falta por recaudar. Máximo permitido: $${limit.toFixed(2)}.`
+  }
+
+  function apiErrorMessage(cause: unknown) {
+    if (cause instanceof ApiError) {
+      if (cause.code === "CONTRIBUTION_EXCEEDS_REMAINING_AMOUNT")
+        return capacityError()
+      if (cause.code === "CAMPAIGN_NOT_ACTIVE")
+        return "La campaña ya no acepta aportes."
+      return cause.message
+    }
+    return "No se pudo procesar el aporte."
+  }
 
   async function submit() {
     if (!canSubmit || !campaignId) return
@@ -88,24 +126,31 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
 
       setStatus(result.status === "CONFIRMED" ? "success" : "failed")
     } catch (cause) {
-      setError(
-        cause instanceof ApiError && cause.code === "CAMPAIGN_NOT_ACTIVE"
-          ? "La campaña ya no acepta aportes."
-          : cause instanceof ApiError
-            ? cause.message
-            : "No se pudo procesar el aporte.",
-      )
+      setError(apiErrorMessage(cause))
 
       setStatus("failed")
     }
   }
 
   async function retry() {
-    if (!contribution) return
+    if (!contribution || !campaignId) return
 
     setStatus("loading")
+    setError("")
 
     try {
+      const latestCampaign = await api.campaign(campaignId)
+      setCampaign(latestCampaign)
+      const latestRemaining = Math.max(
+        latestCampaign.progress.remainingAmount ??
+          latestCampaign.goalAmount - latestCampaign.progress.raisedAmount,
+        0,
+      )
+      if (contribution.amount > latestRemaining) {
+        setError(capacityError(latestRemaining))
+        setStatus("failed")
+        return
+      }
       const result = await api.retryContribution(
         contribution.id,
 
@@ -117,10 +162,9 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
       setContribution(result)
 
       setStatus(result.status === "CONFIRMED" ? "success" : "failed")
-    } catch {
+    } catch (cause) {
       setStatus("failed")
-
-      setError("No se pudo reintentar el aporte.")
+      setError(apiErrorMessage(cause))
     }
   }
 
@@ -186,10 +230,14 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
                   type="number"
                   min="0.01"
                   step="0.01"
+                  max={campaign ? remainingAmount : undefined}
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3"
                 />
+                <span className="text-xs text-gray-400">
+                  Máximo permitido actualmente: ${remainingAmount.toFixed(2)}
+                </span>
               </label>
               <label className="block text-sm font-medium">
                 Moneda
@@ -238,8 +286,12 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
             </div>
             {status === "failed" && (
               <button
+                disabled={
+                  !contribution ||
+                  contribution.amount > remainingAmount
+                }
                 onClick={retry}
-                className="mt-4 w-full rounded-xl border border-primary text-primary py-3 font-semibold"
+                className="mt-4 w-full rounded-xl border border-primary text-primary py-3 font-semibold disabled:border-gray-200 disabled:text-gray-400"
               >
                 Reintentar
               </button>
