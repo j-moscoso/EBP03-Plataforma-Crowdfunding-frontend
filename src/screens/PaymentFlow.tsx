@@ -11,7 +11,9 @@ import { api, ApiError } from "../services/api"
 
 type Props = {
   navigate: (screen: Screen) => void
+
   campaignId: string | null
+
   user: User | null
 }
 
@@ -38,8 +40,11 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
   useEffect(() => {
     if (campaignId)
       api
+
         .campaign(campaignId)
+
         .then(setCampaign)
+
         .catch(() => setError("No se pudo cargar la campaña."))
   }, [campaignId])
 
@@ -57,20 +62,30 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
 
   async function submit() {
     if (!canSubmit || !campaignId) return
+
     setStatus("loading")
+
     setError("")
+
     try {
       const result = await api.contribute(
         campaignId,
+
         {
           amount: Number(amount),
+
           currency: currency.toUpperCase(),
+
           rewardId: rewardId || undefined,
+
           paymentMethodId,
         },
+
         operationKey,
       )
+
       setContribution(result)
+
       setStatus(result.status === "CONFIRMED" ? "success" : "failed")
     } catch (cause) {
       setError(
@@ -80,23 +95,31 @@ export default function PaymentFlow({ navigate, campaignId, user }: Props) {
             ? cause.message
             : "No se pudo procesar el aporte.",
       )
+
       setStatus("failed")
     }
   }
 
   async function retry() {
     if (!contribution) return
+
     setStatus("loading")
+
     try {
       const result = await api.retryContribution(
         contribution.id,
+
         paymentMethodId,
+
         operationKey,
       )
+
       setContribution(result)
+
       setStatus(result.status === "CONFIRMED" ? "success" : "failed")
     } catch {
       setStatus("failed")
+
       setError("No se pudo reintentar el aporte.")
     }
   }

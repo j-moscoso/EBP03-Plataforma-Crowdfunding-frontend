@@ -75,8 +75,11 @@ export default function Register({ navigate, onLogin }: RegisterProps) {
     try {
       const response = await api.register(
         email.split("@")[0],
+
         email,
+
         password,
+
         role!,
       )
 
@@ -155,15 +158,21 @@ export default function Register({ navigate, onLogin }: RegisterProps) {
               {([
                 {
                   value: "sponsor",
+
                   emoji: "💎",
+
                   label: "Quiero ser Patrocinador",
+
                   sub: "Apoya proyectos",
                 },
 
                 {
                   value: "creator",
+
                   emoji: "🚀",
+
                   label: "Quiero ser Creador",
+
                   sub: "Lanza tu campaña",
                 },
               ] as const).map((opt) => (
@@ -214,6 +223,7 @@ export default function Register({ navigate, onLogin }: RegisterProps) {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value)
+
                 setEmailError("")
               }}
               onBlur={handleEmailBlur}
@@ -309,25 +319,33 @@ export default function Register({ navigate, onLogin }: RegisterProps) {
                 {[
                   {
                     key: "length",
+
                     label: "Mínimo 8 caracteres",
+
                     met: checks.length,
                   },
 
                   {
                     key: "upper",
+
                     label: "Al menos 1 mayúscula",
+
                     met: checks.upper,
                   },
 
                   {
                     key: "number",
+
                     label: "Al menos 1 número",
+
                     met: checks.number,
                   },
 
                   {
                     key: "symbol",
+
                     label: "Al menos 1 símbolo",
+
                     met: checks.symbol,
                   },
                 ].map((c) => (

@@ -61,7 +61,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   } catch {
     body = {
       code: "INVALID_RESPONSE",
+
       message: "El servidor devolvió una respuesta inválida.",
+
       details: [],
     }
   }
@@ -77,21 +79,30 @@ export const api = {
   login: async (email: string, password: string, rememberMe: boolean) => {
     const response = await request<AuthResponse>("/api/auth/login", {
       method: "POST",
+
       body: JSON.stringify({ email, password, rememberMe }),
     })
+
     return { ...response, user: normalizeUser(response.user) }
   },
 
   register: (
     name: string,
+
     email: string,
+
     password: string,
+
     role: User["role"],
   ) =>
     request<AuthResponse>("/api/auth/register", {
       method: "POST",
+
       body: JSON.stringify({ name, email, password, role }),
-    }).then((response) => ({ ...response, user: normalizeUser(response.user) })),
+    }).then((response) => ({
+      ...response,
+      user: normalizeUser(response.user),
+    })),
 
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
 
@@ -102,12 +113,14 @@ export const api = {
   createDraft: (body: unknown) =>
     request<Draft>("/api/drafts", {
       method: "POST",
+
       body: JSON.stringify(body),
     }),
 
   updateDraft: (id: string, body: unknown) =>
     request<Draft>(`/api/drafts/${id}`, {
       method: "PUT",
+
       body: JSON.stringify(body),
     }),
 
@@ -120,6 +133,11 @@ export const api = {
   campaigns: () =>
     request<PageResponse<Campaign>>(
       "/api/campaigns?page=0&pageSize=10&status=ACTIVE",
+    ),
+
+  campaignsMine: () =>
+    request<PageResponse<Campaign>>(
+      "/api/campaigns/mine?page=0&pageSize=10",
     ),
 
   campaign: (id: string) => request<Campaign>(`/api/campaigns/${id}`),
@@ -142,7 +160,9 @@ export const api = {
 
   retryContribution: (
     id: string,
+
     paymentMethodId: string,
+
     idempotencyKey: string,
   ) =>
     request<Contribution>(`/api/contributions/${id}/retry`, {

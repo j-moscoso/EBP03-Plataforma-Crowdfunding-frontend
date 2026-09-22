@@ -4,28 +4,42 @@ import { type Campaign, type Draft, type Screen, type User } from "../types"
 
 type Props = {
   navigate: (screen: Screen) => void
+
   user: User
+
   isNew?: boolean
+
   drafts: Draft[]
+
   campaigns: Campaign[]
+
   onOpenDraft: (id: string) => void
+
   onDeleteDraft: (id: string) => void
+
   onViewCampaign: (id: string) => void
 }
 
 export default function CreatorDashboard({
   navigate,
+
   user,
+
   drafts,
+
   campaigns,
+
   onOpenDraft,
+
   onDeleteDraft,
+
   onViewCampaign,
 }: Props) {
   const [showDrafts, setShowDrafts] = useState(false)
 
   const total = campaigns.reduce(
     (sum, campaign) => sum + campaign.progress.raisedAmount,
+
     0,
   )
 
@@ -59,7 +73,9 @@ export default function CreatorDashboard({
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-8 mb-8">
           {[
             ["Total recaudado", `$${total.toLocaleString()}`],
+
             ["Campañas publicadas", String(campaigns.length)],
+
             ["Borradores", String(drafts.length)],
           ].map(([label, value]) => (
             <div

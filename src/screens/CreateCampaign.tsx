@@ -6,35 +6,53 @@ import { api, ApiError } from "../services/api"
 
 type RewardForm = {
   id: string
+
   title: string
+
   description: string
+
   minimumAmount: string
 }
 
 type Props = {
   navigate: (screen: Screen) => void
+
   initialDraft: Draft | null
+
   onSaveDraft: (draft: Draft) => void
+
   onPublish: (campaign: Campaign) => void
+
   user: User | null
 }
 
 const categories = [
   "Tecnología",
+
   "Medio ambiente",
+
   "Arte",
+
   "Salud",
+
   "Educación",
+
   "Comunidad",
+
   "Ciencia",
+
   "Emprendimiento",
 ]
 
 export default function CreateCampaign({
   navigate,
+
   initialDraft,
+
   onSaveDraft,
+
   onPublish,
+
   user,
 }: Props) {
   const [title, setTitle] = useState(initialDraft?.title || "")
@@ -56,14 +74,20 @@ export default function CreateCampaign({
   const [rewards, setRewards] = useState<RewardForm[]>(
     initialDraft?.rewards.map((reward) => ({
       id: reward.id,
+
       title: reward.title,
+
       description: reward.description || "",
+
       minimumAmount: String(reward.minimumAmount),
     })) || [
       {
         id: crypto.randomUUID(),
+
         title: "",
+
         description: "",
+
         minimumAmount: "",
       },
     ],
@@ -71,35 +95,79 @@ export default function CreateCampaign({
 
   const [error, setError] = useState("")
 
+  const [rewardErrors, setRewardErrors] = useState<Record<string, string>>({})
+
   const [saving, setSaving] = useState(false)
 
   const [publishing, setPublishing] = useState(false)
 
   const body = {
     title,
+
     description,
+
     goalAmount: goal ? Number(goal) : null,
+
     durationDays: duration ? Number(duration) : null,
+
     category,
+
     mediaUrl: mediaUrl || null,
 
     rewards: rewards
+
       .filter((reward) => reward.title && reward.minimumAmount)
+
       .map((reward) => ({
         title: reward.title,
+
         description: reward.description,
+
         minimumAmount: Number(reward.minimumAmount),
       })),
   }
 
   function validate() {
-    if (!goal || Number(goal) <= 0)
+    setRewardErrors({})
+
+    const goalAmount = Number(goal)
+
+    const nextRewardErrors: Record<string, string> = {}
+
+    if (!goal || !Number.isFinite(goalAmount) || goalAmount <= 0)
       return "Completa una meta financiera válida."
+
+    if (
+      !Number.isFinite(goalAmount) ||
+      Math.round(goalAmount * 100) !== goalAmount * 100
+    )
+      return "La meta debe ser un importe válido con hasta dos decimales."
 
     if (!duration || Number(duration) <= 0)
       return "Completa una duración válida."
 
     if (!category) return "Selecciona una categoría."
+
+    rewards.forEach((reward) => {
+      if (!reward.title && !reward.minimumAmount) return
+
+      const minimumAmount = Number(reward.minimumAmount)
+
+      if (
+        !Number.isFinite(minimumAmount) ||
+        minimumAmount <= 0 ||
+        Math.round(minimumAmount * 100) !== minimumAmount * 100
+      )
+        nextRewardErrors[reward.id] = "Introduce un monto mínimo válido."
+      else if (minimumAmount > goalAmount)
+        nextRewardErrors[reward.id] =
+          "El monto mínimo no puede superar la meta."
+    })
+
+    setRewardErrors(nextRewardErrors)
+
+    if (Object.keys(nextRewardErrors).length > 0)
+      return "Revisa los montos mínimos de las recompensas."
 
     return ""
   }
@@ -109,10 +177,12 @@ export default function CreateCampaign({
 
     if (validation) {
       setError(validation)
+
       return
     }
 
     setSaving(true)
+
     setError("")
 
     try {
@@ -137,10 +207,12 @@ export default function CreateCampaign({
 
     if (validation || !title || !description) {
       setError(validation || "Completa título y descripción para publicar.")
+
       return
     }
 
     setPublishing(true)
+
     setError("")
 
     try {
@@ -269,10 +341,14 @@ export default function CreateCampaign({
                 onClick={() =>
                   setRewards((previous) => [
                     ...previous,
+
                     {
                       id: crypto.randomUUID(),
+
                       title: "",
+
                       description: "",
+
                       minimumAmount: "",
                     },
                   ])
@@ -309,6 +385,11 @@ export default function CreateCampaign({
                   placeholder="Monto mínimo"
                   className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
                 />
+                {rewardErrors[reward.id] && (
+                  <p className="sm:col-span-3 text-xs text-red-700">
+                    {rewardErrors[reward.id]}
+                  </p>
+                )}
               </div>
             ))}
           </section>

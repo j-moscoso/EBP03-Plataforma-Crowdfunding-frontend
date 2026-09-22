@@ -97,6 +97,7 @@ export default function Login({ navigate, onLogin }: LoginProps) {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value)
+
                 setError("")
               }}
               placeholder="tu@correo.com"
@@ -119,6 +120,7 @@ export default function Login({ navigate, onLogin }: LoginProps) {
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value)
+
                   setError("")
                 }}
                 placeholder="Tu contraseña"

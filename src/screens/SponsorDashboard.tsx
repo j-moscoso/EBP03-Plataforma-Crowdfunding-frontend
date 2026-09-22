@@ -6,7 +6,9 @@ import { api, ApiError } from "../services/api"
 
 type Props = {
   navigate: (screen: Screen) => void
+
   user: User
+
   isNew?: boolean
 }
 
@@ -19,8 +21,11 @@ export default function SponsorDashboard({ navigate, user }: Props) {
 
   useEffect(() => {
     api
+
       .contributions()
+
       .then((page) => setContributions(page.content))
+
       .catch((cause: unknown) =>
         setError(
           cause instanceof ApiError
@@ -28,11 +33,13 @@ export default function SponsorDashboard({ navigate, user }: Props) {
             : "No se pudo cargar tus aportes.",
         ),
       )
+
       .finally(() => setLoading(false))
   }, [])
 
   const total = contributions.reduce(
     (sum, contribution) => sum + contribution.amount,
+
     0,
   )
 
@@ -48,9 +55,12 @@ export default function SponsorDashboard({ navigate, user }: Props) {
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-8 mb-8">
           {[
             ["Total aportado", `$${total.toLocaleString()}`],
+
             ["Aportes confirmados", String(contributions.length)],
+
             [
               "Proyectos apoyados",
+
               String(
                 new Set(contributions.map((item) => item.campaignId)).size,
               ),

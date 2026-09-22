@@ -1,76 +1,114 @@
 import { useEffect, useState } from "react"
- 
+
 import { type Campaign, type Screen, type User } from "../types"
- 
+
 import { api, ApiError } from "../services/api"
- 
+
 type Props = {
   navigate: (screen: Screen) => void
+
   user: User | null
+
   campaigns: Campaign[]
+
   activeCampaign: Campaign | null
+
   activeCampaignId: string | null
+
   onViewCampaign: (id: string) => void
 }
- 
+
 function formatMoney(value: number) {
   return value.toLocaleString("es-AR", {
     minimumFractionDigits: 0,
+
     maximumFractionDigits: 2,
   })
 }
- 
+
 function Countdown({ seconds }: { seconds: number }) {
   const [remaining, setRemaining] = useState(seconds)
+
   useEffect(() => {
     setRemaining(seconds)
+
     const timer = window.setInterval(
       () => setRemaining((value) => Math.max(0, value - 1)),
+
       1000,
     )
+
     return () => window.clearInterval(timer)
   }, [seconds])
+
   const days = Math.floor(remaining / 86400)
+
   const hours = Math.floor((remaining % 86400) / 3600)
+
   return (
     <span>
       {days} días : {hours} horas
     </span>
   )
 }
- 
+
 export default function CampaignPage({
   navigate,
+
   user,
+
   campaigns,
+
   activeCampaign,
+
   activeCampaignId,
+
   onViewCampaign,
 }: Props) {
   const [detail, setDetail] = useState<Campaign | null>(activeCampaign)
- 
+
   const [error, setError] = useState("")
- 
+
   useEffect(() => {
     if (!activeCampaignId) {
       setDetail(null)
+
       setError("")
+
       return
     }
+
     setDetail(activeCampaign)
+
     setError("")
+
+    const requestedCampaignId = activeCampaignId
+
+    let current = true
+
     api
-      .campaign(activeCampaignId)
-      .then(setDetail)
-      .catch((cause: unknown) =>
-        setError(
-          cause instanceof ApiError
-            ? cause.message
-            : "No se pudo cargar la campaña.",
-        ),
+
+      .campaign(requestedCampaignId)
+
+      .then((campaign) => {
+        if (current) setDetail(campaign)
+      })
+
+      .catch(
+        (cause: unknown) =>
+          current &&
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "No se pudo cargar la campaña.",
+          ),
       )
-  }, [activeCampaignId])
- 
+
+    return () => {
+      current = false
+    }
+  }, [activeCampaignId, activeCampaign])
+
   if (!activeCampaignId)
     return (
       <div className="min-h-screen bg-bg">
@@ -138,7 +176,7 @@ export default function CampaignPage({
         </div>
       </div>
     )
- 
+
   if (error && !detail)
     return (
       <div className="min-h-screen bg-bg">
@@ -155,21 +193,21 @@ export default function CampaignPage({
         </div>
       </div>
     )
- 
+
   if (!detail)
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center">
         <p className="text-sm text-gray-500">Cargando campaña...</p>
       </div>
     )
- 
+
   const progress = detail.progress
- 
+
   const canSupport =
     user?.role === "sponsor" &&
     detail.status === "ACTIVE" &&
     progress.secondsRemaining > 0
- 
+
   return (
     <div className="min-h-screen bg-bg">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">

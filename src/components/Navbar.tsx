@@ -14,9 +14,7 @@ export default function Navbar({ user, navigate, onLogout }: NavbarProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <button
-            onClick={() =>
-              navigate("projects")
-            }
+            onClick={() => navigate("projects")}
             className="flex items-center gap-2 font-display font-800 text-xl tracking-tight"
           >
             <span className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">
