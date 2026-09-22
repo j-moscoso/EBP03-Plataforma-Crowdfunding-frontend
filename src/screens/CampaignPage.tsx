@@ -1,24 +1,25 @@
 import { useEffect, useState } from "react"
-
+ 
 import { type Campaign, type Screen, type User } from "../types"
-
+ 
 import { api, ApiError } from "../services/api"
-
+ 
 type Props = {
   navigate: (screen: Screen) => void
   user: User | null
   campaigns: Campaign[]
   activeCampaign: Campaign | null
+  activeCampaignId: string | null
   onViewCampaign: (id: string) => void
 }
-
+ 
 function formatMoney(value: number) {
   return value.toLocaleString("es-AR", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })
 }
-
+ 
 function Countdown({ seconds }: { seconds: number }) {
   const [remaining, setRemaining] = useState(seconds)
   useEffect(() => {
@@ -37,23 +38,29 @@ function Countdown({ seconds }: { seconds: number }) {
     </span>
   )
 }
-
+ 
 export default function CampaignPage({
   navigate,
   user,
   campaigns,
   activeCampaign,
+  activeCampaignId,
   onViewCampaign,
 }: Props) {
   const [detail, setDetail] = useState<Campaign | null>(activeCampaign)
-
+ 
   const [error, setError] = useState("")
-
+ 
   useEffect(() => {
-    if (!activeCampaign) return setDetail(null)
+    if (!activeCampaignId) {
+      setDetail(null)
+      setError("")
+      return
+    }
     setDetail(activeCampaign)
+    setError("")
     api
-      .campaign(activeCampaign.id)
+      .campaign(activeCampaignId)
       .then(setDetail)
       .catch((cause: unknown) =>
         setError(
@@ -62,9 +69,9 @@ export default function CampaignPage({
             : "No se pudo cargar la campaña.",
         ),
       )
-  }, [activeCampaign])
-
-  if (!detail)
+  }, [activeCampaignId])
+ 
+  if (!activeCampaignId)
     return (
       <div className="min-h-screen bg-bg">
         <div className="max-w-7xl mx-auto px-4 py-10">
@@ -131,19 +138,43 @@ export default function CampaignPage({
         </div>
       </div>
     )
-
+ 
+  if (error && !detail)
+    return (
+      <div className="min-h-screen bg-bg">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+          <button
+            onClick={() => navigate("projects")}
+            className="text-sm text-gray-500 hover:text-primary mb-6"
+          >
+            ← Explorar proyectos
+          </button>
+          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        </div>
+      </div>
+    )
+ 
+  if (!detail)
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <p className="text-sm text-gray-500">Cargando campaña...</p>
+      </div>
+    )
+ 
   const progress = detail.progress
-
+ 
   const canSupport =
     user?.role === "sponsor" &&
     detail.status === "ACTIVE" &&
     progress.secondsRemaining > 0
-
+ 
   return (
     <div className="min-h-screen bg-bg">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
         <button
-          onClick={() => navigate("campaign-page")}
+          onClick={() => navigate("projects")}
           className="text-sm text-gray-500 hover:text-primary mb-6"
         >
           ← Explorar proyectos
@@ -225,7 +256,7 @@ export default function CampaignPage({
               <h2 className="font-display font-700 text-lg mb-4">
                 Recompensas
               </h2>
-              {detail.rewards.length === 0 ? (
+              {(detail.rewards ?? []).length === 0 ? (
                 <p className="text-sm text-gray-500">
                   Esta campaña no tiene recompensas.
                 </p>
