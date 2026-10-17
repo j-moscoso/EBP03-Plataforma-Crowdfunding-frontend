@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Screen, TransactionHistoryItem, User } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
+import { formatMoney } from '../utils/money'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
@@ -9,11 +10,7 @@ interface Props {
 }
 
 function amountLabel(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(amount)
-  } catch {
-    return `${currency} ${amount.toLocaleString('es-ES')}`
-  }
+  return formatMoney(amount, currency)
 }
 
 function totalLabel(items: TransactionHistoryItem[]) {
