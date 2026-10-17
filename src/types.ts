@@ -21,7 +21,7 @@ export type CampaignStatus = 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'SUCCESSFUL' | '
 export type ContributionStatus = 'PENDING' | 'CONFIRMED' | 'FAILED' | 'REFUNDED'
 export type CampaignUpdateMediaType = 'IMAGE' | 'VIDEO'
 export type ReceiptStatus = 'HELD' | 'SUCCESSFUL' | 'REFUNDED' | 'FAILED'
-export type SupportedCampaignStatusCode = 'ACTIVA' | 'EXITOSA' | 'FALLIDA'
+export type SupportedCampaignStatusCode = CampaignStatus
 
 export interface User {
   id: string

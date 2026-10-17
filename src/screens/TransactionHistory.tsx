@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { PageResponse, ReceiptStatus, Screen, TransactionHistoryItem } from '../types'
+import type { ContributionStatus, PageResponse, ReceiptStatus, Screen, TransactionHistoryItem } from '../types'
 import { api, apiErrorMessage } from '../services/api'
 
 interface Props {
@@ -13,8 +13,26 @@ const receiptStyles: Record<ReceiptStatus, { label: string; classes: string }> =
   FAILED: { label: 'Fallido', classes: 'bg-red-50 text-red-700 border-red-200' },
 }
 
-function ReceiptBadge({ status }: { status: ReceiptStatus }) {
-  const option = receiptStyles[status]
+function ReceiptBadge({ status }: { status: ReceiptStatus | null | undefined }) {
+  const option = status && status in receiptStyles ? receiptStyles[status as ReceiptStatus] : null
+  if (!option) {
+    return <span className="inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border bg-gray-50 text-gray-600 border-gray-200">Comprobante pendiente</span>
+  }
+  return <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border ${option.classes}`}>{option.label}</span>
+}
+
+const contributionStyles: Record<ContributionStatus, { label: string; classes: string }> = {
+  PENDING: { label: 'Pendiente', classes: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  CONFIRMED: { label: 'Confirmado', classes: 'bg-primary-light text-primary border-green-200' },
+  FAILED: { label: 'Fallido', classes: 'bg-red-50 text-red-700 border-red-200' },
+  REFUNDED: { label: 'Reembolsado', classes: 'bg-slate-100 text-slate-700 border-slate-200' },
+}
+
+function ContributionBadge({ status }: { status: ContributionStatus | null | undefined }) {
+  const option = status && status in contributionStyles ? contributionStyles[status as ContributionStatus] : null
+  if (!option) {
+    return <span className="inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border bg-gray-50 text-gray-600 border-gray-200">Estado pendiente</span>
+  }
   return <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border ${option.classes}`}>{option.label}</span>
 }
 
@@ -177,7 +195,7 @@ export default function TransactionHistory({ navigate }: Props) {
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      {['Fecha', 'Proyecto', 'Monto', 'Referencia', 'Comprobante'].map(header => <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold text-gray-500">{header}</th>)}
+                      {['Fecha', 'Proyecto', 'Monto', 'Referencia', 'Aporte', 'Comprobante'].map(header => <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold text-gray-500">{header}</th>)}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -189,6 +207,7 @@ export default function TransactionHistory({ navigate }: Props) {
                         </td>
                         <td className="px-5 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">{amountLabel(item.amount, item.currency)}</td>
                         <td className="px-5 py-4 max-w-xs"><Reference item={item} copiedId={copiedId} onCopy={copyReference} /></td>
+                        <td className="px-5 py-4"><ContributionBadge status={item.contributionStatus} /></td>
                         <td className="px-5 py-4"><ReceiptBadge status={item.receiptStatus} /></td>
                       </tr>
                     ))}
@@ -205,7 +224,10 @@ export default function TransactionHistory({ navigate }: Props) {
                       <p className="text-xs text-gray-400">{dateLabel(item.date)}</p>
                       <button type="button" onClick={() => navigate('campaign-page', item.campaignId)} className="font-display font-700 text-gray-900 hover:text-primary text-left mt-1">{item.projectName}</button>
                     </div>
-                    <ReceiptBadge status={item.receiptStatus} />
+                    <div className="flex flex-col items-end gap-1.5">
+                      <ContributionBadge status={item.contributionStatus} />
+                      <ReceiptBadge status={item.receiptStatus} />
+                    </div>
                   </div>
                   <p className="font-display font-800 text-xl text-primary mt-4">{amountLabel(item.amount, item.currency)}</p>
                   <div className="border-t border-gray-100 mt-4 pt-4">

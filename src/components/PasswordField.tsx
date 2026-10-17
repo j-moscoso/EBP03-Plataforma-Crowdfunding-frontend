@@ -82,7 +82,7 @@ export function PasswordChecklist({ requirements }: { requirements: PasswordRequ
     ['symbol', 'Un símbolo'],
   ]
   return (
-    <div className="grid sm:grid-cols-2 gap-2 mt-3" aria-label="Requisitos de contraseña">
+    <div className="grid sm:grid-cols-2 gap-2 mt-3" aria-label="Requisitos de contraseña" aria-live="polite">
       {items.map(([key, label]) => (
         <div key={key} className="flex items-center gap-2">
           <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${

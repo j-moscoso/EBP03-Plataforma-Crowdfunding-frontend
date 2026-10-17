@@ -16,7 +16,7 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
   const [loadingCampaign, setLoadingCampaign] = useState(true)
   const [campaignError, setCampaignError] = useState('')
   const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState('USD')
+  const currency: string | null = null
   const [rewardId, setRewardId] = useState('')
   const [paymentMethodId, setPaymentMethodId] = useState('sim_success')
   const [status, setStatus] = useState<Status>('form')
@@ -64,7 +64,8 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
   const selectedReward = campaign.rewards.find(reward => reward.id === rewardId)
   const amountOkay = validAmount(amount) && Number(amount) <= remaining
   const rewardOkay = !selectedReward || Number(amount) >= selectedReward.minimumAmount
-  const canSubmit = campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0 && amountOkay && /^[A-Za-z]{3}$/.test(currency) && Boolean(paymentMethodId.trim()) && rewardOkay
+  const currencyAvailable = Boolean(currency)
+  const canSubmit = campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0 && amountOkay && currencyAvailable && Boolean(paymentMethodId.trim()) && rewardOkay
 
   function paymentError(requestError: unknown) {
     if (requestError instanceof ApiError) {
@@ -76,7 +77,7 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
 
   async function contribute(event: React.FormEvent) {
     event.preventDefault()
-    if (!canSubmit || !campaignId) return
+    if (!canSubmit || !campaignId || !currency) return
     setStatus('loading')
     setError('')
     operationKey.current ??= crypto.randomUUID()
@@ -146,23 +147,33 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
         {status === 'form' && (
           <form onSubmit={contribute} className="fade-in">
             <h1 className="font-display font-800 text-3xl text-gray-900">Realiza tu aporte</h1>
-            <p className="text-sm text-gray-500 mt-2 mb-6">Apoyando a <strong>{campaign.title}</strong>. Restante: ${remaining.toLocaleString()}.</p>
+            <p className="text-sm text-gray-500 mt-2 mb-6">Apoyando a <strong>{campaign.title}</strong>. Restante: {remaining.toLocaleString('es-ES')} <span className="text-warning">(moneda pendiente)</span>.</p>
             {campaignError && <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{campaignError}</div>}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
               <div>
-                <label className="block text-sm font-medium mb-1.5">Monto</label>
-                <input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" placeholder="50.00" />
-                {amount && !amountOkay && <p className="text-xs text-error mt-1">Ingresa un monto positivo, con máximo dos decimales y no mayor a ${remaining.toLocaleString()}.</p>}
+                <label htmlFor="contribution-amount" className="block text-sm font-medium mb-1.5">Monto</label>
+                <input id="contribution-amount" inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" placeholder="50.00" />
+                {amount && !amountOkay && <p className="text-xs text-error mt-1">Ingresa un monto positivo, con máximo dos decimales y no mayor al restante disponible.</p>}
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1.5">Moneda</label><input value={currency} maxLength={3} onChange={event => setCurrency(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 uppercase outline-none focus:border-primary" /></div>
-                <div><label className="block text-sm font-medium mb-1.5">Método de pago (desarrollo)</label><input value={paymentMethodId} onChange={event => setPaymentMethodId(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary" /></div>
+                <div>
+                  <label htmlFor="contribution-currency" className="block text-sm font-medium mb-1.5">Moneda</label>
+                  <input
+                    id="contribution-currency"
+                    value="Pendiente de integración"
+                    readOnly
+                    aria-describedby="contribution-currency-help"
+                    className="w-full px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 text-sm text-yellow-800 outline-none cursor-not-allowed"
+                  />
+                  <p id="contribution-currency-help" className="text-xs text-yellow-700 mt-1.5">La campaña aún no informa una moneda autoritativa. El aporte permanecerá deshabilitado.</p>
+                </div>
+                <div><label htmlFor="payment-method-id" className="block text-sm font-medium mb-1.5">Método de pago (desarrollo)</label><input id="payment-method-id" value={paymentMethodId} onChange={event => setPaymentMethodId(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary" /></div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5">Recompensa opcional</label>
-                <select value={rewardId} onChange={event => { const id = event.target.value; setRewardId(id); const reward = campaign.rewards.find(item => item.id === id); if (reward) setAmount(String(reward.minimumAmount)) }} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary">
+                <label htmlFor="contribution-reward" className="block text-sm font-medium mb-1.5">Recompensa opcional</label>
+                <select id="contribution-reward" value={rewardId} onChange={event => { const id = event.target.value; setRewardId(id); const reward = campaign.rewards.find(item => item.id === id); if (reward) setAmount(String(reward.minimumAmount)) }} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary">
                   <option value="">Sin recompensa</option>
-                  {campaign.rewards.map(reward => <option key={reward.id} value={reward.id}>{reward.title} · ${reward.minimumAmount}+</option>)}
+                  {campaign.rewards.map(reward => <option key={reward.id} value={reward.id}>{reward.title} · mínimo {reward.minimumAmount.toLocaleString('es-ES')} (moneda pendiente)</option>)}
                 </select>
                 {!rewardOkay && <p className="text-xs text-error mt-1">El monto debe alcanzar el mínimo de la recompensa.</p>}
               </div>
@@ -170,6 +181,7 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
                 <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                 Pago seguro. Nunca enviamos ni almacenamos datos completos de tarjeta.
               </div>
+              {!currencyAvailable && <p className="text-xs text-center text-gray-500">No es posible confirmar el aporte hasta que el backend entregue la moneda de esta campaña.</p>}
               <button disabled={!canSubmit} className="w-full bg-primary text-white rounded-xl py-3 font-semibold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed">Confirmar aporte</button>
             </div>
           </form>

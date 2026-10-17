@@ -271,7 +271,7 @@ export default function UserSettings({ navigate, onUserUpdated, onSessionExpired
                 <button type="button" onClick={cancel} disabled={saving} className="px-5 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-gray-300 disabled:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/30">
                   Cancelar
                 </button>
-                <button type="submit" disabled={!isDirty || saving} className="px-6 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-hover disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <button type="submit" disabled={!isDirty || saving || (showValidation && localNameErrors.length > 0)} className="px-6 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-hover disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/30">
                   {saving && <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" aria-hidden="true" />}
                   {saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>

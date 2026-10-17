@@ -13,9 +13,12 @@ interface Props {
 }
 
 const statusStyles: Record<SupportedCampaignStatusCode, { label: string; classes: string }> = {
-  ACTIVA: { label: 'ACTIVA', classes: 'bg-primary-light text-primary border-green-200' },
-  EXITOSA: { label: 'EXITOSA', classes: 'bg-green-100 text-green-800 border-green-200' },
-  FALLIDA: { label: 'FALLIDA', classes: 'bg-red-50 text-red-700 border-red-200' },
+  ACTIVE: { label: 'ACTIVA', classes: 'bg-primary-light text-primary border-green-200' },
+  PUBLISHED: { label: 'ACTIVA', classes: 'bg-primary-light text-primary border-green-200' },
+  SUCCESSFUL: { label: 'EXITOSA', classes: 'bg-green-100 text-green-800 border-green-200' },
+  FAILED: { label: 'FALLIDA', classes: 'bg-red-50 text-red-700 border-red-200' },
+  DRAFT: { label: 'BORRADOR', classes: 'bg-gray-100 text-gray-700 border-gray-200' },
+  CANCELLED: { label: 'CANCELADA', classes: 'bg-slate-100 text-slate-700 border-slate-200' },
 }
 
 function exactAmount(amount: number, currency: string) {
