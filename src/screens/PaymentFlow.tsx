@@ -1,302 +1,199 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from 'react'
+import type { Campaign, Contribution, Screen, User } from '../types'
+import { ApiError, api, apiErrorMessage } from '../services/api'
 
-import {
-  type Campaign,
-  type Screen,
-  type User,
-  type Contribution,
-} from "../types"
-
-import { api, ApiError } from "../services/api"
-
-type Props = {
-  navigate: (screen: Screen) => void
-
+interface Props {
   campaignId: string | null
-
   user: User | null
+  navigate: (screen: Screen, id?: string | null) => void
 }
 
-export default function PaymentFlow({ navigate, campaignId, user }: Props) {
+type Status = 'form' | 'loading' | 'success' | 'failed'
+const validAmount = (value: string) => /^\d+(?:\.\d{1,2})?$/.test(value) && Number(value) > 0
+
+export default function PaymentFlow({ campaignId, user, navigate }: Props) {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-
-  const [amount, setAmount] = useState("")
-
-  const [currency, setCurrency] = useState("USD")
-
-  const [rewardId, setRewardId] = useState("")
-
-  const [paymentMethodId, setPaymentMethodId] = useState("sim_success")
-
-  const [status, setStatus] =
-    useState<"idle" | "loading" | "success" | "failed">("idle")
-
-  const [error, setError] = useState("")
-
+  const [loadingCampaign, setLoadingCampaign] = useState(true)
+  const [campaignError, setCampaignError] = useState('')
+  const [amount, setAmount] = useState('')
+  const [currency, setCurrency] = useState('USD')
+  const [rewardId, setRewardId] = useState('')
+  const [paymentMethodId, setPaymentMethodId] = useState('sim_success')
+  const [status, setStatus] = useState<Status>('form')
+  const [error, setError] = useState('')
   const [contribution, setContribution] = useState<Contribution | null>(null)
+  const operationKey = useRef<string | null>(null)
 
-  const [operationKey] = useState(() => crypto.randomUUID())
-
-  useEffect(() => {
+  async function loadCampaign() {
     if (!campaignId) {
-      setCampaign(null)
-      return
+      setCampaignError('Falta el identificador de la campaña.')
+      setLoadingCampaign(false)
+      return null
     }
-
-    let current = true
-    setCampaign(null)
-    setError("")
-    api
-      .campaign(campaignId)
-      .then((nextCampaign) => {
-        if (current) setCampaign(nextCampaign)
-      })
-      .catch(() => {
-        if (current) setError("No se pudo cargar la campaña.")
-      })
-    return () => {
-      current = false
+    try {
+      const result = await api.campaign(campaignId)
+      setCampaign(result)
+      setCampaignError('')
+      return result
+    } catch (requestError) {
+      setCampaignError(apiErrorMessage(requestError, 'No pudimos cargar la campaña.'))
+      return null
+    } finally {
+      setLoadingCampaign(false)
     }
-  }, [campaignId])
-
-  const selectedReward = campaign?.rewards.find(
-    (reward) => reward.id === rewardId,
-  )
-
-  const remainingAmount = campaign
-    ? Math.max(
-        campaign.progress.remainingAmount ??
-          campaign.goalAmount - campaign.progress.raisedAmount,
-        0,
-      )
-    : 0
-  const numericAmount = Number(amount)
-
-  const canSubmit =
-    user?.role === "sponsor" &&
-    !!campaignId &&
-    Number.isFinite(numericAmount) &&
-    numericAmount > 0 &&
-    Math.round(numericAmount * 100) === numericAmount * 100 &&
-    numericAmount <= remainingAmount &&
-    /^[A-Za-z]{3}$/.test(currency) &&
-    paymentMethodId.trim().length > 0 &&
-    (!selectedReward || Number(amount) >= selectedReward.minimumAmount)
-
-  function capacityError(limit = remainingAmount) {
-    return `El aporte supera el importe que todavía falta por recaudar. Máximo permitido: $${limit.toFixed(2)}.`
   }
 
-  function apiErrorMessage(cause: unknown) {
-    if (cause instanceof ApiError) {
-      if (cause.code === "CONTRIBUTION_EXCEEDS_REMAINING_AMOUNT")
-        return capacityError()
-      if (cause.code === "CAMPAIGN_NOT_ACTIVE")
-        return "La campaña ya no acepta aportes."
-      return cause.message
-    }
-    return "No se pudo procesar el aporte."
+  useEffect(() => { void loadCampaign() }, [campaignId])
+
+  if (!user || user.role !== 'sponsor') {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center px-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center max-w-md">
+          <h1 className="font-display font-800 text-2xl text-gray-900">Inicia sesión como patrocinador</h1>
+          <p className="text-sm text-gray-500 mt-2 mb-6">Necesitas una cuenta de patrocinador para realizar un aporte.</p>
+          <button onClick={() => navigate('login')} className="bg-primary text-white rounded-xl px-6 py-3 text-sm font-semibold">Iniciar sesión</button>
+        </div>
+      </div>
+    )
   }
 
-  async function submit() {
+  if (loadingCampaign) return <div className="min-h-screen bg-bg flex items-center justify-center text-sm font-semibold text-gray-600">Cargando campaña...</div>
+  if (!campaign) return <div className="min-h-screen bg-bg flex items-center justify-center px-4"><div className="bg-white p-8 rounded-2xl text-center"><p className="text-error text-sm mb-4">{campaignError}</p><button onClick={() => navigate('projects')} className="text-primary font-semibold">Volver a explorar</button></div></div>
+
+  const remaining = Math.max(campaign.progress.remainingAmount ?? campaign.goalAmount - campaign.progress.raisedAmount, 0)
+  const selectedReward = campaign.rewards.find(reward => reward.id === rewardId)
+  const amountOkay = validAmount(amount) && Number(amount) <= remaining
+  const rewardOkay = !selectedReward || Number(amount) >= selectedReward.minimumAmount
+  const canSubmit = campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0 && amountOkay && /^[A-Za-z]{3}$/.test(currency) && Boolean(paymentMethodId.trim()) && rewardOkay
+
+  function paymentError(requestError: unknown) {
+    if (requestError instanceof ApiError) {
+      if (requestError.code === 'CONTRIBUTION_EXCEEDS_REMAINING_AMOUNT') return 'El aporte supera el monto restante de la campaña.'
+      if (requestError.code === 'CAMPAIGN_NOT_ACTIVE') return 'La campaña ya no está activa.'
+    }
+    return apiErrorMessage(requestError, 'No pudimos procesar tu aporte.')
+  }
+
+  async function contribute(event: React.FormEvent) {
+    event.preventDefault()
     if (!canSubmit || !campaignId) return
-
-    setStatus("loading")
-
-    setError("")
-
+    setStatus('loading')
+    setError('')
+    operationKey.current ??= crypto.randomUUID()
     try {
       const result = await api.contribute(
         campaignId,
-
         {
           amount: Number(amount),
-
           currency: currency.toUpperCase(),
-
           rewardId: rewardId || undefined,
-
-          paymentMethodId,
+          paymentMethodId: paymentMethodId.trim(),
         },
-
-        operationKey,
+        operationKey.current,
       )
-
       setContribution(result)
-
-      setStatus(result.status === "CONFIRMED" ? "success" : "failed")
-    } catch (cause) {
-      setError(apiErrorMessage(cause))
-
-      setStatus("failed")
+      if (result.status === 'CONFIRMED') setStatus('success')
+      else {
+        setError('El aporte no fue confirmado. Puedes reintentarlo.')
+        setStatus('failed')
+      }
+    } catch (requestError) {
+      setError(paymentError(requestError))
+      setStatus('failed')
     }
   }
 
   async function retry() {
-    if (!contribution || !campaignId) return
-
-    setStatus("loading")
-    setError("")
-
+    if (!contribution) {
+      operationKey.current = null
+      setStatus('form')
+      return
+    }
+    setStatus('loading')
+    setError('')
+    const freshCampaign = await loadCampaign()
+    if (!freshCampaign) {
+      setError('No pudimos verificar el monto restante.')
+      setStatus('failed')
+      return
+    }
+    const freshRemaining = Math.max(freshCampaign.progress.remainingAmount ?? freshCampaign.goalAmount - freshCampaign.progress.raisedAmount, 0)
+    if (contribution.amount > freshRemaining) {
+      setError('El aporte supera el monto restante actualizado de la campaña.')
+      setStatus('failed')
+      return
+    }
+    const retryKey = crypto.randomUUID()
+    operationKey.current = retryKey
     try {
-      const latestCampaign = await api.campaign(campaignId)
-      setCampaign(latestCampaign)
-      const latestRemaining = Math.max(
-        latestCampaign.progress.remainingAmount ??
-          latestCampaign.goalAmount - latestCampaign.progress.raisedAmount,
-        0,
-      )
-      if (contribution.amount > latestRemaining) {
-        setError(capacityError(latestRemaining))
-        setStatus("failed")
-        return
-      }
-      const result = await api.retryContribution(
-        contribution.id,
-
-        paymentMethodId,
-
-        operationKey,
-      )
-
+      const result = await api.retryContribution(contribution.id, paymentMethodId.trim(), retryKey)
       setContribution(result)
-
-      setStatus(result.status === "CONFIRMED" ? "success" : "failed")
-    } catch (cause) {
-      setStatus("failed")
-      setError(apiErrorMessage(cause))
+      if (result.status === 'CONFIRMED') setStatus('success')
+      else {
+        setError('El aporte todavía no pudo confirmarse.')
+        setStatus('failed')
+      }
+    } catch (requestError) {
+      setError(paymentError(requestError))
+      setStatus('failed')
     }
   }
 
-  if (!user || user.role !== "sponsor")
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="bg-white rounded-2xl p-8 text-center">
-          <h1 className="font-display font-800 text-xl">
-            Inicia sesión como patrocinador
-          </h1>
-          <button
-            onClick={() => navigate("login")}
-            className="mt-5 rounded-xl bg-primary text-white px-5 py-2.5 text-sm font-semibold"
-          >
-            Ir a iniciar sesión
-          </button>
-        </div>
-      </div>
-    )
-
   return (
     <div className="min-h-screen bg-bg flex items-start justify-center py-12 px-4">
-      <div className="w-full max-w-lg">
-        <button
-          onClick={() => navigate("campaign-page")}
-          className="text-sm text-gray-500 mb-6"
-        >
-          ← Volver a la campaña
-        </button>
-        {status === "success" ? (
-          <div className="bg-white rounded-2xl p-8 text-center">
-            <div className="text-4xl text-primary mb-4">✓</div>
-            <h1 className="font-display font-800 text-2xl">
-              Aporte confirmado
-            </h1>
-            <p className="text-sm text-gray-500 mt-2">
-              Tu aporte de {amount} {currency.toUpperCase()} fue registrado.
-            </p>
-            <button
-              onClick={() => navigate("campaign-page")}
-              className="mt-6 rounded-xl bg-primary text-white px-5 py-3 text-sm font-semibold"
-            >
-              Volver a la campaña
-            </button>
-          </div>
-        ) : (
-          <>
-            <h1 className="font-display font-800 text-2xl">
-              Apoya este proyecto
-            </h1>
-            <p className="text-sm text-gray-500 mt-2 mb-6">
-              {campaign?.title || "Cargando campaña..."}
-            </p>
-            {error && (
-              <div className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                {error}
+      <div className="w-full max-w-xl">
+        <button onClick={() => navigate('campaign-page', campaign.id)} className="text-sm text-gray-500 hover:text-primary mb-6">← Volver a la campaña</button>
+        {status === 'form' && (
+          <form onSubmit={contribute} className="fade-in">
+            <h1 className="font-display font-800 text-3xl text-gray-900">Realiza tu aporte</h1>
+            <p className="text-sm text-gray-500 mt-2 mb-6">Apoyando a <strong>{campaign.title}</strong>. Restante: ${remaining.toLocaleString()}.</p>
+            {campaignError && <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{campaignError}</div>}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Monto</label>
+                <input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" placeholder="50.00" />
+                {amount && !amountOkay && <p className="text-xs text-error mt-1">Ingresa un monto positivo, con máximo dos decimales y no mayor a ${remaining.toLocaleString()}.</p>}
               </div>
-            )}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-              <label className="block text-sm font-medium">
-                Monto
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  max={campaign ? remainingAmount : undefined}
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3"
-                />
-                <span className="text-xs text-gray-400">
-                  Máximo permitido actualmente: ${remainingAmount.toFixed(2)}
-                </span>
-              </label>
-              <label className="block text-sm font-medium">
-                Moneda
-                <input
-                  maxLength={3}
-                  value={currency}
-                  onChange={(event) =>
-                    setCurrency(event.target.value.toUpperCase())
-                  }
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3"
-                />
-              </label>
-              <label className="block text-sm font-medium">
-                Recompensa
-                <select
-                  value={rewardId}
-                  onChange={(event) => setRewardId(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3"
-                >
-                  <option value="">Aporte libre</option>
-                  {campaign?.rewards.map((reward) => (
-                    <option key={reward.id} value={reward.id}>
-                      {reward.title} - mínimo {reward.minimumAmount}
-                    </option>
-                  ))}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium mb-1.5">Moneda</label><input value={currency} maxLength={3} onChange={event => setCurrency(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 uppercase outline-none focus:border-primary" /></div>
+                <div><label className="block text-sm font-medium mb-1.5">Método de pago (desarrollo)</label><input value={paymentMethodId} onChange={event => setPaymentMethodId(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary" /></div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Recompensa opcional</label>
+                <select value={rewardId} onChange={event => { const id = event.target.value; setRewardId(id); const reward = campaign.rewards.find(item => item.id === id); if (reward) setAmount(String(reward.minimumAmount)) }} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary">
+                  <option value="">Sin recompensa</option>
+                  {campaign.rewards.map(reward => <option key={reward.id} value={reward.id}>{reward.title} · ${reward.minimumAmount}+</option>)}
                 </select>
-              </label>
-              <label className="block text-sm font-medium">
-                Identificador de pago de desarrollo
-                <input
-                  value={paymentMethodId}
-                  onChange={(event) => setPaymentMethodId(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3"
-                />
-                <span className="text-xs text-gray-400">
-                  Usa sim_success o sim_failure en desarrollo.
-                </span>
-              </label>
-              <button
-                disabled={!canSubmit || status === "loading"}
-                onClick={submit}
-                className="w-full rounded-xl bg-primary text-white py-3.5 font-semibold disabled:bg-gray-200 disabled:text-gray-500"
-              >
-                {status === "loading" ? "Procesando..." : "Confirmar aporte"}
-              </button>
+                {!rewardOkay && <p className="text-xs text-error mt-1">El monto debe alcanzar el mínimo de la recompensa.</p>}
+              </div>
+              <div className="flex items-center gap-2 bg-primary-light rounded-xl px-4 py-3 text-xs text-gray-600">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                Pago seguro. Nunca enviamos ni almacenamos datos completos de tarjeta.
+              </div>
+              <button disabled={!canSubmit} className="w-full bg-primary text-white rounded-xl py-3 font-semibold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed">Confirmar aporte</button>
             </div>
-            {status === "failed" && (
-              <button
-                disabled={
-                  !contribution ||
-                  contribution.amount > remainingAmount
-                }
-                onClick={retry}
-                className="mt-4 w-full rounded-xl border border-primary text-primary py-3 font-semibold disabled:border-gray-200 disabled:text-gray-400"
-              >
-                Reintentar
-              </button>
-            )}
-          </>
+          </form>
+        )}
+        {status === 'loading' && <div className="py-20 text-center"><div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto mb-4" /><h2 className="font-display font-700 text-xl">Procesando tu aporte...</h2><p className="text-sm text-gray-500 mt-2">Esperando la confirmación del servidor.</p></div>}
+        {status === 'success' && contribution && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center fade-in">
+            <div className="w-16 h-16 rounded-full bg-primary-light text-primary flex items-center justify-center text-3xl mx-auto mb-4">✓</div>
+            <h2 className="font-display font-800 text-2xl">¡Gracias por tu aporte!</h2>
+            <p className="text-sm text-gray-500 mt-2">Tu apoyo de <strong className="text-primary">{contribution.currency} {contribution.amount.toLocaleString()}</strong> fue confirmado.</p>
+            <p className="text-xs text-gray-400 mt-3">Referencia: {contribution.id}</p>
+            <button onClick={() => navigate('campaign-page', campaign.id)} className="w-full bg-primary text-white rounded-xl py-3 font-semibold mt-6">Volver a la campaña</button>
+          </div>
+        )}
+        {status === 'failed' && (
+          <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-8 text-center fade-in">
+            <div className="w-16 h-16 rounded-full bg-red-50 text-error flex items-center justify-center text-3xl mx-auto mb-4">!</div>
+            <h2 className="font-display font-800 text-2xl">No pudimos confirmar tu aporte</h2>
+            <p className="text-sm text-gray-500 mt-2">{error}</p>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => navigate('campaign-page', campaign.id)} className="flex-1 border border-gray-200 rounded-xl py-3 text-sm font-semibold">Cancelar</button>
+              <button onClick={() => void retry()} className="flex-1 bg-primary text-white rounded-xl py-3 text-sm font-semibold">Reintentar</button>
+            </div>
+          </div>
         )}
       </div>
     </div>
