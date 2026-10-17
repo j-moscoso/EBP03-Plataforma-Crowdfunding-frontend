@@ -11,7 +11,7 @@ interface Props {
 }
 
 type RequestState = 'default' | 'loading' | 'sent'
-type ConfirmState = 'validating' | 'invalid' | 'form' | 'loading' | 'success'
+type ConfirmState = 'validating' | 'validation-error' | 'invalid' | 'form' | 'loading' | 'success'
 
 const publicRequestMessage = 'Si la cuenta cumple los requisitos, recibirás instrucciones para restablecer tu contraseña.'
 const invalidTokenMessage = 'El enlace no es válido o ya expiró. Solicita uno nuevo.'
@@ -129,6 +129,7 @@ function ConfirmPasswordReset({ token, navigate, clearToken }: Omit<Props, 'mode
   const [passwordError, setPasswordError] = useState('')
   const [confirmationError, setConfirmationError] = useState('')
   const [error, setError] = useState('')
+  const [validationAttempt, setValidationAttempt] = useState(0)
   const requirements = useMemo(() => getPasswordRequirements(newPassword), [newPassword])
   const passwordValid = Object.values(requirements).every(Boolean)
 
@@ -155,11 +156,11 @@ function ConfirmPasswordReset({ token, navigate, clearToken }: Omit<Props, 'mode
           setError(requestError instanceof ApiError && requestError.status === 429
             ? 'Has realizado demasiados intentos. Espera unos minutos antes de continuar.'
             : 'No pudimos validar el enlace. Comprueba tu conexión e inténtalo de nuevo.')
-          setState('invalid')
+          setState('validation-error')
         }
       })
     return () => { active = false }
-  }, [token])
+  }, [token, validationAttempt])
 
   function applyFieldErrors(details: unknown) {
     if (!details || typeof details !== 'object') return
@@ -190,7 +191,10 @@ function ConfirmPasswordReset({ token, navigate, clearToken }: Omit<Props, 'mode
     }
     setState('loading')
     try {
-      await api.confirmPasswordReset(token, newPassword)
+      const result = await api.confirmPasswordReset(token, newPassword)
+      if (!result.loginRequired) {
+        throw new ApiError(502, 'INVALID_RESET_CONFIRMATION', 'El servidor no confirmó el cierre de las sesiones anteriores.')
+      }
       setNewPassword('')
       setConfirmation('')
       clearToken()
@@ -228,6 +232,18 @@ function ConfirmPasswordReset({ token, navigate, clearToken }: Omit<Props, 'mode
           <h1 className="font-display font-700 text-xl text-gray-900">Validando enlace...</h1>
           <p className="text-sm text-gray-500 mt-2">Esto tomará solo un momento.</p>
         </div>
+      </ResetShell>
+    )
+  }
+
+  if (state === 'validation-error') {
+    return (
+      <ResetShell>
+        <h1 className="font-display font-800 text-2xl text-gray-900 text-center">No pudimos validar el enlace</h1>
+        <p className="text-sm text-gray-500 text-center leading-relaxed mt-3">{error}</p>
+        <button type="button" onClick={() => { setError(''); setState('validating'); setValidationAttempt(attempt => attempt + 1) }} className="w-full mt-6 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/30">
+          Reintentar
+        </button>
       </ResetShell>
     )
   }

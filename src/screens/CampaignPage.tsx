@@ -5,6 +5,7 @@ import type {
   CampaignUpdateMedia,
   CampaignUpdateMediaType,
   FieldValidationError,
+  PageResponse,
   Screen,
   User,
 } from '../types'
@@ -17,6 +18,7 @@ interface Props {
   error: string
   navigate: (screen: Screen, id?: string | null) => void
   user: User | null
+  onSessionExpired: () => void
 }
 
 function Countdown({ initialSeconds }: { initialSeconds: number }) {
@@ -82,7 +84,7 @@ function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaign
 function isSafeMediaUrl(value: string) {
   try {
     const parsed = new URL(value)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+    return parsed.protocol === 'https:'
   } catch {
     return false
   }
@@ -145,8 +147,8 @@ interface UpdateErrors {
 
 const emptyUpdateErrors = (): UpdateErrors => ({ title: [], body: [], media: {} })
 
-function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | null }) {
-  const [updates, setUpdates] = useState<CampaignUpdate[]>([])
+function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign; user: User | null; onSessionExpired: () => void }) {
+  const [updatesResponse, setUpdatesResponse] = useState<PageResponse<CampaignUpdate> | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [title, setTitle] = useState('')
@@ -161,12 +163,12 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
   const isCreator = user?.role === 'creator' &&
     (user.id === campaign.creator.id || campaign.currentUserIsCreator === true)
 
-  async function loadUpdates() {
+  async function loadUpdates(pageNumber = 0) {
     setLoading(true)
     setLoadError('')
     try {
-      const response = await api.campaignUpdates(campaign.id)
-      setUpdates([...response.content].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+      const response = await api.campaignUpdates(campaign.id, pageNumber, 10)
+      setUpdatesResponse(response)
     } catch (requestError) {
       setLoadError(apiErrorMessage(requestError, 'No pudimos cargar las actualizaciones.'))
     } finally {
@@ -180,11 +182,12 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
     setBody('')
     setMedia([])
     setSuccess(false)
-    void loadUpdates()
+    setUpdatesResponse(null)
+    void loadUpdates(0)
   }, [campaign.id])
 
   function addMedia() {
-    if (media.length >= 5) return
+    if (media.length >= 10) return
     setMedia(current => [...current, { localId: crypto.randomUUID(), type: 'IMAGE', url: '' }])
     setSuccess(false)
   }
@@ -203,12 +206,13 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
   function validate() {
     const next = emptyUpdateErrors()
     if (!title.trim()) next.title.push('El título es obligatorio.')
+    else if (title.trim().length > 140) next.title.push('El título no puede superar 140 caracteres.')
     if (!body.trim()) next.body.push('El contenido es obligatorio.')
     media.forEach(item => {
       const rowErrors: string[] = []
       if (item.type !== 'IMAGE' && item.type !== 'VIDEO') rowErrors.push('Selecciona un tipo de medio válido.')
       if (!item.url.trim()) rowErrors.push('La URL del medio es obligatoria.')
-      else if (!isSafeMediaUrl(item.url.trim())) rowErrors.push('Usa una URL absoluta con http:// o https://. No se permiten esquemas peligrosos.')
+      else if (!isSafeMediaUrl(item.url.trim())) rowErrors.push('Usa una URL absoluta HTTPS. No se permiten otros esquemas.')
       if (rowErrors.length) next.media[item.localId] = rowErrors
     })
     setErrors(next)
@@ -236,7 +240,7 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
       if (fieldError.field === 'title') next.title.push(fieldError.message)
       else if (fieldError.field === 'body') next.body.push(fieldError.message)
       else {
-        const match = fieldError.field.match(/^media\[(\d+)]\.(url|type)$/)
+        const match = fieldError.field.match(/^media\[(\d+)]\.(url|type|mediaType)$/)
         const row = match ? media[Number(match[1])] : null
         if (row) next.media[row.localId] = [...(next.media[row.localId] ?? []), fieldError.message]
       }
@@ -256,14 +260,29 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
         body: body.trim(),
         media: media.map(item => ({ type: item.type, url: item.url.trim() })),
       })
-      setUpdates(current => [created, ...current.filter(update => update.id !== created.id)])
+      if ((updatesResponse?.page ?? 0) === 0) {
+        setUpdatesResponse(current => {
+          if (!current) return current
+          const totalElements = current.totalElements + 1
+          return {
+            ...current,
+            content: [created, ...current.content.filter(update => update.id !== created.id)].slice(0, current.pageSize),
+            totalElements,
+            totalPages: Math.ceil(totalElements / current.pageSize),
+          }
+        })
+      } else {
+        void loadUpdates(0)
+      }
       setTitle('')
       setBody('')
       setMedia([])
       setErrors(emptyUpdateErrors())
       setSuccess(true)
     } catch (requestError) {
-      if (requestError instanceof ApiError && requestError.status === 403) {
+      if (requestError instanceof ApiError && requestError.status === 401) {
+        onSessionExpired()
+      } else if (requestError instanceof ApiError && requestError.status === 403) {
         setEditorForbidden(true)
       } else if (requestError instanceof ApiError && (requestError.status === 400 || requestError.code === 'VALIDATION_ERROR')) {
         applyBackendErrors(requestError.details)
@@ -283,7 +302,7 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
           <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1.5">Muro de campaña</p>
           <h2 id="campaign-updates-title" className="font-display font-800 text-2xl text-gray-900">Actualizaciones del proyecto</h2>
         </div>
-        {!loading && !loadError && <span className="text-xs text-gray-400">{updates.length} {updates.length === 1 ? 'publicación' : 'publicaciones'}</span>}
+        {!loading && !loadError && updatesResponse && <span className="text-xs text-gray-400">{updatesResponse.totalElements} {updatesResponse.totalElements === 1 ? 'publicación' : 'publicaciones'}</span>}
       </div>
 
       {isCreator && !editorForbidden && (
@@ -300,19 +319,19 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
           <div className="space-y-4">
             <div>
               <label htmlFor="update-title" className="block text-sm font-medium text-gray-700 mb-1.5">Título *</label>
-              <input id="update-title" value={title} onChange={event => { setTitle(event.target.value); setErrors(current => ({ ...current, title: [] })); setSuccess(false) }} disabled={publishing} aria-invalid={errors.title.length > 0} aria-describedby={errors.title.length ? 'update-title-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.title.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Ej: Comenzamos la primera producción" />
+              <input id="update-title" value={title} onChange={event => { setTitle(event.target.value); setErrors(current => ({ ...current, title: [] })); setSuccess(false) }} maxLength={140} disabled={publishing} aria-invalid={errors.title.length > 0} aria-describedby={errors.title.length ? 'update-title-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.title.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Ej: Comenzamos la primera producción" />
               <div id="update-title-errors">{errors.title.map(message => <p key={message} className="text-xs text-error mt-1">{message}</p>)}</div>
             </div>
             <div>
-              <div className="flex justify-between mb-1.5"><label htmlFor="update-body" className="block text-sm font-medium text-gray-700">Contenido *</label><span className="text-xs text-gray-400">{body.length}/3000</span></div>
-              <textarea id="update-body" value={body} onChange={event => { setBody(event.target.value); setErrors(current => ({ ...current, body: [] })); setSuccess(false) }} maxLength={3000} rows={6} disabled={publishing} aria-invalid={errors.body.length > 0} aria-describedby={errors.body.length ? 'update-body-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none resize-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.body.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Cuenta qué ha cambiado, qué lograron y cuáles son los próximos pasos." />
+              <div className="flex justify-between mb-1.5"><label htmlFor="update-body" className="block text-sm font-medium text-gray-700">Contenido *</label><span className="text-xs text-gray-400">{body.length}/10000</span></div>
+              <textarea id="update-body" value={body} onChange={event => { setBody(event.target.value); setErrors(current => ({ ...current, body: [] })); setSuccess(false) }} maxLength={10000} rows={6} disabled={publishing} aria-invalid={errors.body.length > 0} aria-describedby={errors.body.length ? 'update-body-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none resize-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.body.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Cuenta qué ha cambiado, qué lograron y cuáles son los próximos pasos." />
               <div id="update-body-errors">{errors.body.map(message => <p key={message} className="text-xs text-error mt-1">{message}</p>)}</div>
             </div>
 
             <div className="border-t border-gray-100 pt-5">
               <div className="flex items-center justify-between gap-4 mb-4">
-                <div><p className="text-sm font-semibold text-gray-700">Medios externos</p><p className="text-xs text-gray-400 mt-0.5">Imágenes o videos mediante URL segura.</p></div>
-                <button type="button" onClick={addMedia} disabled={media.length >= 5 || publishing} className="text-xs font-semibold text-primary border border-primary rounded-lg px-3 py-2 hover:bg-primary-light disabled:border-gray-200 disabled:text-gray-300">+ Agregar medio</button>
+                <div><p className="text-sm font-semibold text-gray-700">Medios externos</p><p className="text-xs text-gray-400 mt-0.5">Imágenes o videos mediante URL HTTPS segura (máximo 10).</p></div>
+                <button type="button" onClick={addMedia} disabled={media.length >= 10 || publishing} className="text-xs font-semibold text-primary border border-primary rounded-lg px-3 py-2 hover:bg-primary-light disabled:border-gray-200 disabled:text-gray-300">+ Agregar medio</button>
               </div>
               <div className="space-y-4">
                 {media.map((item, index) => {
@@ -336,7 +355,7 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
                         </div>
                       </div>
                       <div id={`${item.localId}-errors`}>{rowErrors.map(message => <p key={message} className="text-xs text-error mt-1">{message}</p>)}</div>
-                      {isSafeMediaUrl(item.url) && <div className="mt-3"><SafeMedia media={{ type: item.type, url: item.url }} title={title || 'Vista previa'} /></div>}
+                      {isSafeMediaUrl(item.url) && <div className="mt-3"><SafeMedia media={{ type: item.type, url: item.url, sortOrder: index }} title={title || 'Vista previa'} /></div>}
                     </div>
                   )
                 })}
@@ -361,14 +380,14 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
           <p className="text-sm text-error">{loadError}</p>
           <button type="button" onClick={() => void loadUpdates()} className="mt-3 text-sm font-semibold text-primary hover:underline">Reintentar</button>
         </div>
-      ) : updates.length === 0 ? (
+      ) : (updatesResponse?.content.length ?? 0) === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-12 px-6 text-center">
           <p className="font-display font-700 text-gray-700">Aún no hay actualizaciones</p>
           <p className="text-sm text-gray-400 mt-1">Las noticias y avances del proyecto aparecerán aquí.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {updates.map(update => (
+          {updatesResponse?.content.map(update => (
             <article key={update.id} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
               {update.media.length > 0 && (
                 <div className={`grid gap-2 p-3 bg-gray-50 ${update.media.length > 1 ? 'sm:grid-cols-2' : ''}`}>
@@ -376,7 +395,7 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
                 </div>
               )}
               <div className="p-6">
-                <p className="text-xs text-gray-400">{new Date(update.createdAt).toLocaleString('es-ES')}</p>
+                <p className="text-xs text-gray-400">{new Date(update.publishedAt).toLocaleString('es-ES')}</p>
                 <h3 className="font-display font-700 text-xl text-gray-900 mt-2">{update.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap mt-3">{update.body}</p>
               </div>
@@ -384,12 +403,21 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
           ))}
         </div>
       )}
+      {!loading && !loadError && updatesResponse && updatesResponse.totalPages > 1 && (
+        <nav className="mt-5 flex items-center justify-between gap-3" aria-label="Paginación de actualizaciones">
+          <p className="text-xs text-gray-500">Página {updatesResponse.page + 1} de {updatesResponse.totalPages}</p>
+          <div className="flex gap-2">
+            <button type="button" disabled={updatesResponse.page <= 0} onClick={() => void loadUpdates(updatesResponse.page - 1)} className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300 disabled:bg-gray-50">Anterior</button>
+            <button type="button" disabled={updatesResponse.page + 1 >= updatesResponse.totalPages} onClick={() => void loadUpdates(updatesResponse.page + 1)} className="bg-primary text-white rounded-xl px-4 py-2 text-sm font-semibold disabled:bg-gray-200 disabled:text-gray-400">Siguiente</button>
+          </div>
+        </nav>
+      )}
     </section>
   )
 }
 
 export default function CampaignPage(props: Props) {
-  const { campaignId, campaigns, loading, error, navigate, user } = props
+  const { campaignId, campaigns, loading, error, navigate, user, onSessionExpired } = props
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [detailLoading, setDetailLoading] = useState(Boolean(campaignId))
   const [detailError, setDetailError] = useState('')
@@ -453,7 +481,7 @@ export default function CampaignPage(props: Props) {
                 </div>
               )}
             </section>
-            <CampaignWall campaign={campaign} user={user} />
+            <CampaignWall campaign={campaign} user={user} onSessionExpired={onSessionExpired} />
           </div>
           <aside>
             <div className="lg:sticky lg:top-20 bg-white rounded-2xl border border-gray-100 shadow-md p-6">

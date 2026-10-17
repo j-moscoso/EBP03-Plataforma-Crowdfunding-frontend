@@ -8,8 +8,8 @@ interface Props {
   onSessionExpired: () => void
 }
 
-const maxNameLength = 80
-const validNameCharacters = /^[\p{L}\p{M} .'-]+$/u
+const maxNameLength = 120
+const validNameCharacters = /^[\p{L}\p{M} .,'’\-]+$/u
 
 function validateName(value: string) {
   const errors: string[] = []

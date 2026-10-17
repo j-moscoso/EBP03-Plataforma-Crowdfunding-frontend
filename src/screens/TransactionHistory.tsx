@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import type { ContributionStatus, PageResponse, ReceiptStatus, Screen, TransactionHistoryItem } from '../types'
-import { api, apiErrorMessage } from '../services/api'
+import type { ContributionStatus, PageResponse, PaymentStatus, ReceiptStatus, Screen, TransactionHistoryItem } from '../types'
+import { ApiError, api, apiErrorMessage } from '../services/api'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
+  onSessionExpired: () => void
 }
 
 const receiptStyles: Record<ReceiptStatus, { label: string; classes: string }> = {
@@ -36,6 +37,22 @@ function ContributionBadge({ status }: { status: ContributionStatus | null | und
   return <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border ${option.classes}`}>{option.label}</span>
 }
 
+const paymentStyles: Record<PaymentStatus, { label: string; classes: string }> = {
+  CREATED: { label: 'Creado', classes: 'bg-gray-50 text-gray-700 border-gray-200' },
+  PROCESSING: { label: 'En proceso', classes: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  SUCCEEDED: { label: 'Exitoso', classes: 'bg-green-50 text-green-700 border-green-200' },
+  FAILED: { label: 'Fallido', classes: 'bg-red-50 text-red-700 border-red-200' },
+  REFUNDED: { label: 'Reembolsado', classes: 'bg-slate-100 text-slate-700 border-slate-200' },
+}
+
+function PaymentBadge({ status }: { status: PaymentStatus | null | undefined }) {
+  const option = status ? paymentStyles[status] : null
+  if (!option) {
+    return <span className="inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border bg-gray-50 text-gray-600 border-gray-200">Pago pendiente</span>
+  }
+  return <span className={`inline-flex text-xs font-semibold px-2.5 py-1 rounded-full border ${option.classes}`}>{option.label}</span>
+}
+
 function amountLabel(amount: number, currency: string) {
   try {
     return new Intl.NumberFormat('es-ES', { style: 'currency', currency }).format(amount)
@@ -45,10 +62,9 @@ function amountLabel(amount: number, currency: string) {
 }
 
 function totalLabel(items: TransactionHistoryItem[]) {
-  if (!items.length) return amountLabel(0, 'USD')
-  const currency = items[0].currency
-  if (items.some(item => item.currency !== currency)) return 'Varias monedas'
-  return amountLabel(items.reduce((sum, item) => sum + item.amount, 0), currency)
+  const totals = new Map<string, number>()
+  items.forEach(item => totals.set(item.currency, (totals.get(item.currency) ?? 0) + item.amount))
+  return [...totals.entries()].map(([currency, amount]) => amountLabel(amount, currency)).join(' · ') || '—'
 }
 
 function dateLabel(value: string) {
@@ -98,7 +114,7 @@ function Reference({
   )
 }
 
-export default function TransactionHistory({ navigate }: Props) {
+export default function TransactionHistory({ navigate, onSessionExpired }: Props) {
   const [response, setResponse] = useState<PageResponse<TransactionHistoryItem> | null>(null)
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -116,7 +132,13 @@ export default function TransactionHistory({ navigate }: Props) {
       setResponse(result)
       setPage(result.page)
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'No pudimos cargar tu historial de transacciones.'))
+      if (requestError instanceof ApiError && requestError.status === 401) {
+        onSessionExpired()
+      } else if (requestError instanceof ApiError && requestError.status === 403) {
+        setError('Esta sección está disponible únicamente para patrocinadores.')
+      } else {
+        setError(apiErrorMessage(requestError, 'No pudimos cargar tu historial de transacciones.'))
+      }
     } finally {
       setLoading(false)
     }
@@ -184,7 +206,7 @@ export default function TransactionHistory({ navigate }: Props) {
             <div className="w-14 h-14 rounded-full bg-primary-light text-primary flex items-center justify-center mx-auto mb-4" aria-hidden="true">
               <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l2 2 4-4m5 8H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v12a2 2 0 01-2 2zM2 9h20" /></svg>
             </div>
-            <h2 className="font-display font-700 text-gray-900">Aún no has realizado aportes</h2>
+            <h2 className="font-display font-700 text-gray-900">{response?.emptyMessage || 'Aún no has realizado aportes'}</h2>
             <p className="text-sm text-gray-400 mt-2 mb-5">Cuando apoyes una campaña, su transacción aparecerá aquí.</p>
             <button type="button" onClick={() => navigate('projects')} className="bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary-hover">Explorar proyectos</button>
           </div>
@@ -195,7 +217,7 @@ export default function TransactionHistory({ navigate }: Props) {
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
-                      {['Fecha', 'Proyecto', 'Monto', 'Referencia', 'Aporte', 'Comprobante'].map(header => <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold text-gray-500">{header}</th>)}
+                      {['Fecha', 'Proyecto', 'Monto', 'Referencia', 'Aporte', 'Pago', 'Comprobante'].map(header => <th key={header} scope="col" className="px-5 py-3.5 text-xs font-semibold text-gray-500">{header}</th>)}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -208,6 +230,7 @@ export default function TransactionHistory({ navigate }: Props) {
                         <td className="px-5 py-4 text-sm font-semibold text-gray-900 whitespace-nowrap">{amountLabel(item.amount, item.currency)}</td>
                         <td className="px-5 py-4 max-w-xs"><Reference item={item} copiedId={copiedId} onCopy={copyReference} /></td>
                         <td className="px-5 py-4"><ContributionBadge status={item.contributionStatus} /></td>
+                        <td className="px-5 py-4"><PaymentBadge status={item.paymentStatus} /></td>
                         <td className="px-5 py-4"><ReceiptBadge status={item.receiptStatus} /></td>
                       </tr>
                     ))}
@@ -227,6 +250,7 @@ export default function TransactionHistory({ navigate }: Props) {
                     <div className="flex flex-col items-end gap-1.5">
                       <ContributionBadge status={item.contributionStatus} />
                       <ReceiptBadge status={item.receiptStatus} />
+                      <PaymentBadge status={item.paymentStatus} />
                     </div>
                   </div>
                   <p className="font-display font-800 text-xl text-primary mt-4">{amountLabel(item.amount, item.currency)}</p>

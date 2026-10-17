@@ -12,13 +12,13 @@ interface Props {
   onSessionExpired: () => void
 }
 
-const statusStyles: Record<SupportedCampaignStatusCode, { label: string; classes: string }> = {
-  ACTIVE: { label: 'ACTIVA', classes: 'bg-primary-light text-primary border-green-200' },
-  PUBLISHED: { label: 'ACTIVA', classes: 'bg-primary-light text-primary border-green-200' },
-  SUCCESSFUL: { label: 'EXITOSA', classes: 'bg-green-100 text-green-800 border-green-200' },
-  FAILED: { label: 'FALLIDA', classes: 'bg-red-50 text-red-700 border-red-200' },
-  DRAFT: { label: 'BORRADOR', classes: 'bg-gray-100 text-gray-700 border-gray-200' },
-  CANCELLED: { label: 'CANCELADA', classes: 'bg-slate-100 text-slate-700 border-slate-200' },
+const statusStyles: Record<SupportedCampaignStatusCode, string> = {
+  ACTIVE: 'bg-primary-light text-primary border-green-200',
+  PUBLISHED: 'bg-primary-light text-primary border-green-200',
+  SUCCESSFUL: 'bg-green-100 text-green-800 border-green-200',
+  FAILED: 'bg-red-50 text-red-700 border-red-200',
+  DRAFT: 'bg-gray-100 text-gray-700 border-gray-200',
+  CANCELLED: 'bg-slate-100 text-slate-700 border-slate-200',
 }
 
 function exactAmount(amount: number, currency: string) {
@@ -61,7 +61,7 @@ function SupportedCampaignCard({
   item: SupportedCampaignCardModel
   onOpen: () => void
 }) {
-  const status = statusStyles[item.statusCode]
+  const statusClass = statusStyles[item.statusCode] ?? 'bg-gray-100 text-gray-700 border-gray-200'
   const visualPercentage = Math.max(0, Math.min(item.totalRaisedPercentage, 100))
   return (
     <article className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
@@ -69,7 +69,7 @@ function SupportedCampaignCard({
       <div className="p-5 flex flex-col flex-1">
         <div className="flex items-start justify-between gap-3">
           <h2 className="font-display font-700 text-lg text-gray-900 line-clamp-2">{item.title}</h2>
-          <span className={`inline-flex text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-full border flex-shrink-0 ${status.classes}`}>{status.label}</span>
+          <span className={`inline-flex text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-full border flex-shrink-0 ${statusClass}`}>{item.status}</span>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-5">
@@ -192,7 +192,7 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
             <div className="w-14 h-14 rounded-full bg-primary-light text-primary flex items-center justify-center mx-auto mb-4" aria-hidden="true">
               <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21s-7-4.4-7-11a4 4 0 017-2.6A4 4 0 0119 10c0 6.6-7 11-7 11z" /></svg>
             </div>
-            <h2 className="font-display font-700 text-gray-900">Aún no has apoyado ningún proyecto</h2>
+            <h2 className="font-display font-700 text-gray-900">{response?.emptyMessage || 'Aún no has apoyado ningún proyecto'}</h2>
             <p className="text-sm text-gray-400 mt-2 mb-5">Descubre campañas activas y comienza a generar impacto.</p>
             <button type="button" onClick={() => navigate('projects')} className="bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary-hover">Explorar proyectos</button>
           </div>

@@ -3,16 +3,21 @@ import type {
   AuthResponse,
   Campaign,
   CampaignUpdate,
+  CampaignUpdateDto,
   CampaignUpdatePayload,
   Contribution,
   ContributionPayload,
   CreatorProfile,
+  CreatorProfileDto,
   CreatorProfilePayload,
+  CreatorProfileSaveResponse,
   Draft,
   DraftPayload,
   PageResponse,
   Notification,
+  NotificationDto,
   PasswordResetRequestResponse,
+  PasswordResetConfirmationResponse,
   PasswordResetValidationResponse,
   Progress,
   SupportedCampaignCard,
@@ -20,6 +25,7 @@ import type {
   User,
   UserRole,
   UpdateMePayload,
+  UpdateMeResponse,
 } from '../types'
 
 export const API_BASE_URL =
@@ -49,6 +55,46 @@ function normalizeUser(user: User): User {
 
 function normalizeCampaign(campaign: Campaign): Campaign {
   return { ...campaign, creator: normalizeUser(campaign.creator) }
+}
+
+function normalizeCreatorProfile(profile: CreatorProfileDto): CreatorProfile {
+  return {
+    id: profile.id ?? undefined,
+    displayName: profile.displayName ?? '',
+    bio: profile.bio ?? '',
+    phone: profile.phone ?? '',
+    professionalTitle: profile.professionalTitle ?? '',
+    banking: {
+      accountType: profile.bankAccountType ?? '',
+      bankName: profile.bankName ?? '',
+      maskedAccountNumber: profile.bankAccountNumberMasked,
+      accountHolder: profile.bankAccountHolder ?? '',
+      maskedHolderDocument: profile.bankAccountDocumentMasked,
+    },
+    links: profile.links.map(link => ({
+      id: link.id,
+      type: link.linkType,
+      label: link.label ?? '',
+      url: link.url,
+      order: link.sortOrder,
+    })),
+  }
+}
+
+function normalizeCampaignUpdate(update: CampaignUpdateDto): CampaignUpdate {
+  return {
+    id: update.id,
+    campaignId: update.campaignId,
+    title: update.title,
+    body: update.body,
+    publishedAt: update.publishedAt,
+    media: update.media.map(media => ({
+      id: media.id,
+      type: media.mediaType,
+      url: media.url,
+      sortOrder: media.sortOrder,
+    })),
+  }
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -123,20 +169,22 @@ export const api = {
   },
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   async creatorProfile() {
-    return (await request<CreatorProfile | null>('/api/creators/me/profile')) ?? null
+    const response = await request<CreatorProfileDto>('/api/creators/me/profile')
+    return normalizeCreatorProfile(response)
   },
-  saveCreatorProfile: (body: CreatorProfilePayload) =>
-    request<CreatorProfile>('/api/creators/me/profile', {
+  async saveCreatorProfile(body: CreatorProfilePayload) {
+    const response = await request<CreatorProfileSaveResponse>('/api/creators/me/profile', {
       method: 'PUT',
       body: JSON.stringify(body),
-    }),
+    })
+    return normalizeCreatorProfile(response.profile)
+  },
   async updateMe(body: UpdateMePayload) {
-    return normalizeUser(
-      await request<User>('/api/auth/me', {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }),
-    )
+    const response = await request<UpdateMeResponse>('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    })
+    return normalizeUser(response.user)
   },
   requestPasswordReset: (email: string) =>
     request<PasswordResetRequestResponse>('/api/auth/password-reset/request', {
@@ -149,7 +197,7 @@ export const api = {
       body: JSON.stringify({ token }),
     }),
   confirmPasswordReset: (token: string, newPassword: string) =>
-    request<void>('/api/auth/password-reset/confirm', {
+    request<PasswordResetConfirmationResponse>('/api/auth/password-reset/confirm', {
       method: 'POST',
       body: JSON.stringify({ token, newPassword }),
     }),
@@ -182,15 +230,45 @@ export const api = {
   },
   campaignProgress: (id: string) =>
     request<Progress>(`/api/campaigns/${encodeURIComponent(id)}/progress`),
-  campaignUpdates: (id: string) =>
-    page<CampaignUpdate>(`/api/campaigns/${encodeURIComponent(id)}/updates?page=0&pageSize=10`),
-  createCampaignUpdate: (id: string, body: CampaignUpdatePayload) =>
-    request<CampaignUpdate>(`/api/campaigns/${encodeURIComponent(id)}/updates`, {
+  async campaignUpdates(id: string, pageNumber = 0, pageSize = 10) {
+    const response = await page<CampaignUpdateDto>(
+      `/api/campaigns/${encodeURIComponent(id)}/updates?page=${pageNumber}&pageSize=${pageSize}`,
+    )
+    return { ...response, content: response.content.map(normalizeCampaignUpdate) }
+  },
+  async createCampaignUpdate(id: string, body: CampaignUpdatePayload) {
+    const response = await request<CampaignUpdateDto>(`/api/campaigns/${encodeURIComponent(id)}/updates`, {
       method: 'POST',
-      body: JSON.stringify(body),
-    }),
-  notifications: () =>
-    page<Notification>('/api/notifications/me?page=0&pageSize=20'),
+      body: JSON.stringify({
+        title: body.title,
+        body: body.body,
+        media: body.media.map((media, sortOrder) => ({
+          mediaType: media.type,
+          url: media.url,
+          sortOrder,
+        })),
+      }),
+    })
+    return normalizeCampaignUpdate(response)
+  },
+  async notifications() {
+    const response = await page<NotificationDto>(
+      '/api/notifications/me?page=0&pageSize=20&unreadOnly=false',
+    )
+    return {
+      ...response,
+      content: response.content.map((notification): Notification => ({
+        id: notification.id,
+        type: notification.type,
+        title: notification.title,
+        body: notification.body,
+        campaignId: notification.campaignId,
+        campaignUpdateId: notification.campaignUpdateId,
+        createdAt: notification.createdAt,
+        read: notification.readAt !== null,
+      })),
+    }
+  },
   contributions: (pageNumber = 0, pageSize = 10) =>
     page<TransactionHistoryItem>(`/api/contributions/me?page=${pageNumber}&pageSize=${pageSize}`),
   supportedCampaigns: (pageNumber = 0, pageSize = 10) =>

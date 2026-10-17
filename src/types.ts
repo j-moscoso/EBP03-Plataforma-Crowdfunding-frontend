@@ -19,6 +19,7 @@ export type UserRole = 'creator' | 'sponsor'
 export type VerificationStatus = 'pending' | 'verified'
 export type CampaignStatus = 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'SUCCESSFUL' | 'FAILED' | 'CANCELLED'
 export type ContributionStatus = 'PENDING' | 'CONFIRMED' | 'FAILED' | 'REFUNDED'
+export type PaymentStatus = 'CREATED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'
 export type CampaignUpdateMediaType = 'IMAGE' | 'VIDEO'
 export type ReceiptStatus = 'HELD' | 'SUCCESSFUL' | 'REFUNDED' | 'FAILED'
 export type SupportedCampaignStatusCode = CampaignStatus
@@ -45,7 +46,7 @@ export interface CampaignUpdate {
   campaignId: string
   title: string
   body: string
-  createdAt: string
+  publishedAt: string
   media: CampaignUpdateMedia[]
 }
 
@@ -53,6 +54,23 @@ export interface CampaignUpdateMedia {
   id?: string
   type: CampaignUpdateMediaType
   url: string
+  sortOrder: number
+}
+
+export interface CampaignUpdateDto {
+  id: string
+  campaignId: string
+  authorId: string
+  title: string
+  body: string
+  publishedAt: string
+  media: Array<{
+    id: string
+    mediaType: CampaignUpdateMediaType
+    url: string
+    sortOrder: number
+  }>
+  notificationsCreated?: number
 }
 
 export interface CampaignUpdatePayload {
@@ -66,12 +84,24 @@ export interface CampaignUpdatePayload {
 
 export interface Notification {
   id: string
+  type: string
   title: string
   body: string
-  campaignId: string
-  campaignTitle: string
+  campaignId: string | null
+  campaignUpdateId: string | null
   createdAt: string
   read: boolean
+}
+
+export interface NotificationDto {
+  id: string
+  type: string
+  campaignId: string | null
+  campaignUpdateId: string | null
+  title: string
+  body: string
+  readAt: string | null
+  createdAt: string
 }
 
 export interface Progress {
@@ -142,10 +172,10 @@ export interface TransactionHistoryItem {
   amount: number
   currency: string
   referenceCode: string | null
-  receiptStatus: ReceiptStatus
-  receiptStatusLabel: string
+  receiptStatus: ReceiptStatus | null
+  receiptStatusLabel: string | null
   contributionStatus: ContributionStatus
-  paymentStatus: string
+  paymentStatus: PaymentStatus | null
 }
 
 export interface SupportedCampaignCard {
@@ -168,6 +198,7 @@ export interface PageResponse<T> {
   pageSize: number
   totalElements: number
   totalPages: number
+  emptyMessage?: string | null
 }
 
 export interface AuthResponse {
@@ -213,22 +244,55 @@ export interface CreatorProfilePayload {
   bio: string
   phone: string
   professionalTitle: string
-  banking: {
-    accountType: BankAccountType
-    bankName: string
-    accountNumber: string | null
-    preserveAccountNumber: boolean
-    accountHolder: string
-    holderDocument: string | null
-    preserveHolderDocument: boolean
-  }
+  bankAccountType: BankAccountType
+  bankName: string
+  bankAccountNumber: string
+  bankAccountHolder: string
+  bankAccountDocument: string
   links: Array<{
-    id?: string
-    type: CreatorProfileLinkType
+    linkType: CreatorProfileLinkType
     label: string
     url: string
-    order: number
+    sortOrder: number
   }>
+}
+
+export interface CreatorProfileDto {
+  id: string | null
+  userId: string
+  displayName: string | null
+  bio: string | null
+  professionalTitle: string | null
+  phone: string | null
+  bankAccountType: BankAccountType | null
+  bankName: string | null
+  bankAccountNumberMasked: string | null
+  bankAccountHolder: string | null
+  bankAccountDocumentMasked: string | null
+  links: Array<{
+    id: string
+    linkType: CreatorProfileLinkType
+    label: string | null
+    url: string
+    sortOrder: number
+  }>
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface CreatorProfileSaveResponse {
+  message: string
+  profile: CreatorProfileDto
+}
+
+export interface UpdateMeResponse {
+  message: string
+  user: User
+}
+
+export interface PasswordResetConfirmationResponse {
+  message: string
+  loginRequired: boolean
 }
 
 export interface ApiErrorBody {

@@ -145,7 +145,7 @@ export default function App() {
       }
       const current = routeFromPath(location.pathname, location.search)
       if (current.screen === 'register' || current.screen === 'home') {
-        const target = restored ? '/projects' : '/register'
+        const target = restored ? '/projects' : '/login'
         history.replaceState({}, '', target)
         setRoute(routeFromPath(location.pathname, location.search))
       }
@@ -173,7 +173,7 @@ export default function App() {
     }
     const privateScreens: Screen[] = ['creator-dashboard', 'sponsor-dashboard', 'transaction-history', 'supported-projects', 'create-campaign', 'settings', 'creator-profile']
     if (privateScreens.includes(route.screen) && !user) {
-      navigate('register')
+      navigate('login')
       return
     }
     if (route.screen === 'creator-dashboard' && user?.role !== 'creator') navigate('projects')
@@ -235,7 +235,7 @@ export default function App() {
       setUser(null)
       setMine([])
       setDrafts([])
-      navigate('register')
+      navigate('login')
     }
   }
 
@@ -261,7 +261,7 @@ export default function App() {
   const showFooter = route.screen !== 'payment-flow'
   return (
     <div className="min-h-screen flex flex-col bg-bg">
-      <Navbar user={user} navigate={navigate} onLogout={handleLogout} />
+      <Navbar user={user} navigate={navigate} onLogout={handleLogout} onSessionExpired={handleSessionExpired} />
       <main className="flex-1">
         {(route.screen === 'home' || route.screen === 'register') && (
           <Register navigate={navigate} onLogin={handleAuth} />
@@ -304,6 +304,7 @@ export default function App() {
             error={projectsError}
             navigate={navigate}
             user={user}
+            onSessionExpired={handleSessionExpired}
           />
         )}
         {route.screen === 'campaign-page' && (
@@ -314,6 +315,7 @@ export default function App() {
             error={projectsError}
             navigate={navigate}
             user={user}
+            onSessionExpired={handleSessionExpired}
           />
         )}
         {route.screen === 'creator-dashboard' && user?.role === 'creator' && (
@@ -328,10 +330,10 @@ export default function App() {
           />
         )}
         {route.screen === 'sponsor-dashboard' && user?.role === 'sponsor' && (
-          <SponsorDashboard user={user} navigate={navigate} />
+          <SponsorDashboard user={user} navigate={navigate} onSessionExpired={handleSessionExpired} />
         )}
         {route.screen === 'transaction-history' && user?.role === 'sponsor' && (
-          <TransactionHistory navigate={navigate} />
+          <TransactionHistory navigate={navigate} onSessionExpired={handleSessionExpired} />
         )}
         {route.screen === 'supported-projects' && user?.role === 'sponsor' && (
           <SupportedProjects
@@ -356,7 +358,7 @@ export default function App() {
           />
         )}
         {route.screen === 'payment-flow' && (
-          <PaymentFlow campaignId={route.campaignId} user={user} navigate={navigate} />
+          <PaymentFlow campaignId={route.campaignId} user={user} navigate={navigate} onSessionExpired={handleSessionExpired} />
         )}
       </main>
       {showFooter && <Footer />}

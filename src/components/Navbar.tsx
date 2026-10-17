@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { Notification, Screen, User } from '../types'
-import { api, apiErrorMessage } from '../services/api'
+import { ApiError, api, apiErrorMessage } from '../services/api'
 
 interface NavbarProps {
   user: User | null
   navigate: (screen: Screen, id?: string | null) => void
   onLogout: () => void
+  onSessionExpired: () => void
 }
 
-export default function Navbar({ user, navigate, onLogout }: NavbarProps) {
+export default function Navbar({ user, navigate, onLogout, onSessionExpired }: NavbarProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -21,7 +22,8 @@ export default function Navbar({ user, navigate, onLogout }: NavbarProps) {
     try {
       setNotifications((await api.notifications()).content)
     } catch (requestError) {
-      setError(apiErrorMessage(requestError, 'No pudimos cargar tus notificaciones.'))
+      if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
+      else setError(apiErrorMessage(requestError, 'No pudimos cargar tus notificaciones.'))
     } finally {
       setLoading(false)
     }
@@ -117,16 +119,17 @@ export default function Navbar({ user, navigate, onLogout }: NavbarProps) {
                                 key={notification.id}
                                 onClick={() => {
                                   setPanelOpen(false)
-                                  navigate('campaign-page', notification.campaignId)
+                                  if (notification.campaignId) navigate('campaign-page', notification.campaignId)
                                 }}
-                                className={`w-full px-5 py-4 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30 ${notification.read ? 'bg-white' : 'bg-primary-light/30'}`}
+                                disabled={!notification.campaignId}
+                                className={`w-full px-5 py-4 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30 disabled:cursor-default ${notification.read ? 'bg-white' : 'bg-primary-light/30'}`}
                               >
                                 <div className="flex items-start gap-3">
                                   <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notification.read ? 'bg-gray-200' : 'bg-primary'}`} aria-hidden="true" />
                                   <span className="min-w-0">
                                     <span className="block text-sm font-semibold text-gray-900">{notification.title}</span>
                                     <span className="block text-xs text-gray-500 mt-1 line-clamp-2">{notification.body}</span>
-                                    <span className="block text-xs text-primary font-medium mt-2">{notification.campaignTitle}</span>
+                                    <span className="block text-xs text-primary font-medium mt-2">{notification.type === 'CAMPAIGN_UPDATE_PUBLISHED' ? 'Actualización del proyecto' : 'Notificación'}</span>
                                     <span className="block text-[11px] text-gray-400 mt-1">{new Date(notification.createdAt).toLocaleString('es-ES')}</span>
                                   </span>
                                 </div>

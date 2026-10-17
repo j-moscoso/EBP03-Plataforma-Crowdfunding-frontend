@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { Screen, TransactionHistoryItem, User } from '../types'
-import { api, apiErrorMessage } from '../services/api'
+import { ApiError, api, apiErrorMessage } from '../services/api'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
   user: User
+  onSessionExpired: () => void
 }
 
 function amountLabel(amount: number, currency: string) {
@@ -16,13 +17,12 @@ function amountLabel(amount: number, currency: string) {
 }
 
 function totalLabel(items: TransactionHistoryItem[]) {
-  if (!items.length) return amountLabel(0, 'USD')
-  const currency = items[0].currency
-  if (items.some(item => item.currency !== currency)) return 'Varias monedas'
-  return amountLabel(items.reduce((sum, item) => sum + item.amount, 0), currency)
+  const totals = new Map<string, number>()
+  items.forEach(item => totals.set(item.currency, (totals.get(item.currency) ?? 0) + item.amount))
+  return [...totals.entries()].map(([currency, amount]) => amountLabel(amount, currency)).join(' · ') || '—'
 }
 
-export default function SponsorDashboard({ navigate, user }: Props) {
+export default function SponsorDashboard({ navigate, user, onSessionExpired }: Props) {
   const [contributions, setContributions] = useState<TransactionHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -31,7 +31,11 @@ export default function SponsorDashboard({ navigate, user }: Props) {
     let active = true
     void api.contributions()
       .then(response => { if (active) setContributions(response.content) })
-      .catch(requestError => { if (active) setError(apiErrorMessage(requestError, 'No pudimos cargar tus aportes.')) })
+      .catch(requestError => {
+        if (!active) return
+        if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
+        else setError(apiErrorMessage(requestError, 'No pudimos cargar tus aportes.'))
+      })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [])
@@ -58,9 +62,9 @@ export default function SponsorDashboard({ navigate, user }: Props) {
         </div>
         <div className="grid sm:grid-cols-3 gap-4 mb-8">
           {[
-            ['Total visible', totalLabel(contributions)],
-            ['Aportes confirmados', String(confirmed)],
-            ['Proyectos visibles', String(projects)],
+            ['Total por moneda (primera página)', totalLabel(contributions)],
+            ['Aportes confirmados (primera página)', String(confirmed)],
+            ['Proyectos visibles (primera página)', String(projects)],
           ].map(([label, value]) => (
             <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <p className="font-display font-800 text-2xl text-gray-900">{value}</p>

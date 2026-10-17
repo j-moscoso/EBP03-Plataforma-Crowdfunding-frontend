@@ -6,12 +6,13 @@ interface Props {
   campaignId: string | null
   user: User | null
   navigate: (screen: Screen, id?: string | null) => void
+  onSessionExpired: () => void
 }
 
 type Status = 'form' | 'loading' | 'success' | 'failed'
 const validAmount = (value: string) => /^\d+(?:\.\d{1,2})?$/.test(value) && Number(value) > 0
 
-export default function PaymentFlow({ campaignId, user, navigate }: Props) {
+export default function PaymentFlow({ campaignId, user, navigate, onSessionExpired }: Props) {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [loadingCampaign, setLoadingCampaign] = useState(true)
   const [campaignError, setCampaignError] = useState('')
@@ -36,7 +37,8 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
       setCampaignError('')
       return result
     } catch (requestError) {
-      setCampaignError(apiErrorMessage(requestError, 'No pudimos cargar la campaña.'))
+      if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
+      else setCampaignError(apiErrorMessage(requestError, 'No pudimos cargar la campaña.'))
       return null
     } finally {
       setLoadingCampaign(false)
@@ -71,6 +73,7 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
     if (requestError instanceof ApiError) {
       if (requestError.code === 'CONTRIBUTION_EXCEEDS_REMAINING_AMOUNT') return 'El aporte supera el monto restante de la campaña.'
       if (requestError.code === 'CAMPAIGN_NOT_ACTIVE') return 'La campaña ya no está activa.'
+      if (requestError.code === 'CAMPAIGN_CURRENCY_MISMATCH') return 'La moneda del aporte no coincide con la moneda establecida para esta campaña. No vuelvas a intentarlo hasta verificar la moneda autorizada.'
     }
     return apiErrorMessage(requestError, 'No pudimos procesar tu aporte.')
   }
@@ -99,6 +102,7 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
         setStatus('failed')
       }
     } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
       setError(paymentError(requestError))
       setStatus('failed')
     }
@@ -135,6 +139,7 @@ export default function PaymentFlow({ campaignId, user, navigate }: Props) {
         setStatus('failed')
       }
     } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
       setError(paymentError(requestError))
       setStatus('failed')
     }
