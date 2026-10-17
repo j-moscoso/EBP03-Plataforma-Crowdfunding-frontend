@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Campaign, Contribution, Screen, User } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
+import { formatMoney, isCurrencyCode } from '../utils/money'
 
 interface Props {
   campaignId: string | null
@@ -17,7 +18,6 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
   const [loadingCampaign, setLoadingCampaign] = useState(true)
   const [campaignError, setCampaignError] = useState('')
   const [amount, setAmount] = useState('')
-  const currency: string | null = null
   const [rewardId, setRewardId] = useState('')
   const [paymentMethodId, setPaymentMethodId] = useState('sim_success')
   const [status, setStatus] = useState<Status>('form')
@@ -66,7 +66,10 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
   const selectedReward = campaign.rewards.find(reward => reward.id === rewardId)
   const amountOkay = validAmount(amount) && Number(amount) <= remaining
   const rewardOkay = !selectedReward || Number(amount) >= selectedReward.minimumAmount
-  const currencyAvailable = Boolean(currency)
+  const currency = campaign.currencyStatus === 'CONFIGURED' && isCurrencyCode(campaign.currency)
+    ? campaign.currency
+    : null
+  const currencyAvailable = currency !== null
   const canSubmit = campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0 && amountOkay && currencyAvailable && Boolean(paymentMethodId.trim()) && rewardOkay
 
   function paymentError(requestError: unknown) {
@@ -74,6 +77,7 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
       if (requestError.code === 'CONTRIBUTION_EXCEEDS_REMAINING_AMOUNT') return 'El aporte supera el monto restante de la campaña.'
       if (requestError.code === 'CAMPAIGN_NOT_ACTIVE') return 'La campaña ya no está activa.'
       if (requestError.code === 'CAMPAIGN_CURRENCY_MISMATCH') return 'La moneda del aporte no coincide con la moneda establecida para esta campaña. No vuelvas a intentarlo hasta verificar la moneda autorizada.'
+      if (requestError.code === 'CAMPAIGN_CURRENCY_UNAVAILABLE') return 'Esta campaña no permite aportes porque todavía no tiene una moneda autorizada.'
     }
     return apiErrorMessage(requestError, 'No pudimos procesar tu aporte.')
   }
@@ -123,6 +127,11 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
       return
     }
     const freshRemaining = Math.max(freshCampaign.progress.remainingAmount ?? freshCampaign.goalAmount - freshCampaign.progress.raisedAmount, 0)
+    if (freshCampaign.currencyStatus !== 'CONFIGURED' || !isCurrencyCode(freshCampaign.currency)) {
+      setError('Esta campaña no permite reintentos porque no tiene una moneda autorizada.')
+      setStatus('failed')
+      return
+    }
     if (contribution.amount > freshRemaining) {
       setError('El aporte supera el monto restante actualizado de la campaña.')
       setStatus('failed')
@@ -152,7 +161,7 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
         {status === 'form' && (
           <form onSubmit={contribute} className="fade-in">
             <h1 className="font-display font-800 text-3xl text-gray-900">Realiza tu aporte</h1>
-            <p className="text-sm text-gray-500 mt-2 mb-6">Apoyando a <strong>{campaign.title}</strong>. Restante: {remaining.toLocaleString('es-ES')} <span className="text-warning">(moneda pendiente)</span>.</p>
+            <p className="text-sm text-gray-500 mt-2 mb-6">Apoyando a <strong>{campaign.title}</strong>. Restante: {formatMoney(remaining, currency)}.</p>
             {campaignError && <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{campaignError}</div>}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
               <div>
@@ -165,12 +174,14 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
                   <label htmlFor="contribution-currency" className="block text-sm font-medium mb-1.5">Moneda</label>
                   <input
                     id="contribution-currency"
-                    value="Pendiente de integración"
+                    value={currency ?? 'Moneda pendiente de configuración'}
                     readOnly
                     aria-describedby="contribution-currency-help"
                     className="w-full px-4 py-3 rounded-xl border border-yellow-200 bg-yellow-50 text-sm text-yellow-800 outline-none cursor-not-allowed"
                   />
-                  <p id="contribution-currency-help" className="text-xs text-yellow-700 mt-1.5">La campaña aún no informa una moneda autoritativa. El aporte permanecerá deshabilitado.</p>
+                  <p id="contribution-currency-help" className="text-xs text-yellow-700 mt-1.5">
+                    {currency ? 'La moneda está fijada por la campaña y no se puede cambiar.' : 'La campaña aún no informa una moneda autoritativa. El aporte permanecerá deshabilitado.'}
+                  </p>
                 </div>
                 <div><label htmlFor="payment-method-id" className="block text-sm font-medium mb-1.5">Método de pago (desarrollo)</label><input id="payment-method-id" value={paymentMethodId} onChange={event => setPaymentMethodId(event.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary" /></div>
               </div>
@@ -178,7 +189,7 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
                 <label htmlFor="contribution-reward" className="block text-sm font-medium mb-1.5">Recompensa opcional</label>
                 <select id="contribution-reward" value={rewardId} onChange={event => { const id = event.target.value; setRewardId(id); const reward = campaign.rewards.find(item => item.id === id); if (reward) setAmount(String(reward.minimumAmount)) }} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-primary">
                   <option value="">Sin recompensa</option>
-                  {campaign.rewards.map(reward => <option key={reward.id} value={reward.id}>{reward.title} · mínimo {reward.minimumAmount.toLocaleString('es-ES')} (moneda pendiente)</option>)}
+                  {campaign.rewards.map(reward => <option key={reward.id} value={reward.id}>{reward.title} · mínimo {formatMoney(reward.minimumAmount, currency)}</option>)}
                 </select>
                 {!rewardOkay && <p className="text-xs text-error mt-1">El monto debe alcanzar el mínimo de la recompensa.</p>}
               </div>
@@ -196,7 +207,7 @@ export default function PaymentFlow({ campaignId, user, navigate, onSessionExpir
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center fade-in">
             <div className="w-16 h-16 rounded-full bg-primary-light text-primary flex items-center justify-center text-3xl mx-auto mb-4">✓</div>
             <h2 className="font-display font-800 text-2xl">¡Gracias por tu aporte!</h2>
-            <p className="text-sm text-gray-500 mt-2">Tu apoyo de <strong className="text-primary">{contribution.currency} {contribution.amount.toLocaleString()}</strong> fue confirmado.</p>
+            <p className="text-sm text-gray-500 mt-2">Tu apoyo de <strong className="text-primary">{formatMoney(contribution.amount, contribution.currency)}</strong> fue confirmado.</p>
             <p className="text-xs text-gray-400 mt-3">Referencia: {contribution.id}</p>
             <button onClick={() => navigate('campaign-page', campaign.id)} className="w-full bg-primary text-white rounded-xl py-3 font-semibold mt-6">Volver a la campaña</button>
           </div>

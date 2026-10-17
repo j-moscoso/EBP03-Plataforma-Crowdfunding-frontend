@@ -189,4 +189,207 @@ describe('frontend API integration contracts', () => {
     expect(url).toContain('/api/sponsors/me/supported-campaigns?page=0&pageSize=10')
     expect(options?.credentials).toBe('include')
   })
+
+  it('normalizes a configured campaign currency without changing its status', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      id: 'campaign-1',
+      title: 'Huerta comunitaria',
+      description: 'Una campaña',
+      goalAmount: 100000,
+      deadline: '2026-12-01T00:00:00Z',
+      category: 'COMMUNITY',
+      mediaUrl: null,
+      currency: ' cop ',
+      currencyStatus: 'CONFIGURED',
+      status: 'ACTIVE',
+      publishedAt: '2026-10-16T03:00:00Z',
+      creator: {
+        id: 'creator-1',
+        name: 'Ana Pérez',
+        email: 'ana@example.com',
+        role: 'CREATOR',
+        verificationStatus: 'VERIFIED',
+      },
+      rewards: [],
+      updates: [],
+      progress: {
+        goalAmount: 100000,
+        raisedAmount: 25000,
+        remainingAmount: 75000,
+        percentage: 25,
+        sponsorsCount: 1,
+        secondsRemaining: 1000,
+        status: 'ACTIVE',
+      },
+    }))
+
+    const campaign = await api.campaign('campaign-1')
+
+    expect(campaign).toMatchObject({
+      id: 'campaign-1',
+      currency: 'COP',
+      currencyStatus: 'CONFIGURED',
+    })
+  })
+
+  it('keeps a campaign without canonical currency unavailable', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      id: 'campaign-2',
+      title: 'Campaña histórica',
+      description: 'Sin fuente autoritativa',
+      goalAmount: 100000,
+      deadline: '2026-12-01T00:00:00Z',
+      category: 'COMMUNITY',
+      mediaUrl: null,
+      currency: null,
+      currencyStatus: 'UNAVAILABLE',
+      status: 'ACTIVE',
+      publishedAt: null,
+      creator: {
+        id: 'creator-2',
+        name: 'Luis Gómez',
+        email: 'luis@example.com',
+        role: 'CREATOR',
+        verificationStatus: 'VERIFIED',
+      },
+      rewards: [],
+      updates: [],
+      progress: {
+        goalAmount: 100000,
+        raisedAmount: 0,
+        remainingAmount: 100000,
+        percentage: 0,
+        sponsorsCount: 0,
+        secondsRemaining: 0,
+        status: 'ACTIVE',
+      },
+    }))
+
+    const campaign = await api.campaign('campaign-2')
+
+    expect(campaign.currency).toBeNull()
+    expect(campaign.currencyStatus).toBe('UNAVAILABLE')
+  })
+
+  it('does not present an invalid campaign currency as configured', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      id: 'campaign-3',
+      title: 'Campaña inválida',
+      description: 'Moneda incorrecta',
+      goalAmount: 100000,
+      deadline: '2026-12-01T00:00:00Z',
+      category: 'COMMUNITY',
+      mediaUrl: null,
+      currency: 'US',
+      currencyStatus: 'CONFIGURED',
+      status: 'ACTIVE',
+      publishedAt: null,
+      creator: {
+        id: 'creator-3',
+        name: 'Marta Ruiz',
+        email: 'marta@example.com',
+        role: 'CREATOR',
+        verificationStatus: 'VERIFIED',
+      },
+      rewards: [],
+      updates: [],
+      progress: {
+        goalAmount: 100000,
+        raisedAmount: 0,
+        remainingAmount: 100000,
+        percentage: 0,
+        sponsorsCount: 0,
+        secondsRemaining: 0,
+        status: 'ACTIVE',
+      },
+    }))
+
+    const campaign = await api.campaign('campaign-3')
+
+    expect(campaign.currency).toBeNull()
+    expect(campaign.currencyStatus).toBe('UNAVAILABLE')
+    expect(consoleError).toHaveBeenCalledOnce()
+    consoleError.mockRestore()
+  })
+
+  it('preserves supported-campaign omissions and warning details', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      content: [{
+        campaignId: 'campaign-4',
+        imageUrl: null,
+        title: 'Campaña visible',
+        amountContributedByMe: 50000,
+        currency: 'cop',
+        raisedAmount: 50000,
+        goalAmount: 100000,
+        totalRaisedPercentage: 50,
+        status: 'Activa',
+        statusCode: 'ACTIVE',
+        lastContributionAt: '2026-10-16T03:00:00Z',
+      }],
+      page: 0,
+      pageSize: 10,
+      totalElements: 1,
+      totalPages: 1,
+      omittedCampaigns: [{
+        campaignId: 'campaign-5',
+        title: 'Campaña histórica',
+        reasonCode: 'MIXED_CONFIRMED_CURRENCIES',
+        currencies: ['COP', 'USD'],
+      }],
+      warnings: [{
+        code: 'SUPPORTED_CAMPAIGNS_OMITTED',
+        message: 'Algunas campañas no se muestran porque tienen monedas confirmadas incompatibles.',
+        affectedCampaignCount: 1,
+      }],
+    }))
+
+    const response = await api.supportedCampaigns()
+
+    expect(response.content[0]).toMatchObject({
+      currency: 'COP',
+      currencyStatus: 'CONFIGURED',
+    })
+    expect(response.omittedCampaigns).toEqual([{
+      campaignId: 'campaign-5',
+      title: 'Campaña histórica',
+      reasonCode: 'MIXED_CONFIRMED_CURRENCIES',
+      currencies: ['COP', 'USD'],
+    }])
+    expect(response.warnings).toEqual([{
+      code: 'SUPPORTED_CAMPAIGNS_OMITTED',
+      message: 'Algunas campañas no se muestran porque tienen monedas confirmadas incompatibles.',
+      affectedCampaignCount: 1,
+    }])
+  })
+
+  it('sends exactly the campaign currency with a contribution', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      id: 'contribution-1',
+      campaignId: 'campaign-1',
+      sponsorId: 'sponsor-1',
+      rewardId: null,
+      amount: 25000,
+      currency: 'COP',
+      status: 'PENDING',
+      createdAt: '2026-10-16T03:00:00Z',
+      payment: null,
+    }, 201))
+
+    await api.contribute(
+      'campaign-1',
+      { amount: 25000, currency: 'COP', paymentMethodId: 'pm-1' },
+      'idempotency-1',
+    )
+
+    const requestOptions = fetchMock.mock.calls[0]?.[1]
+    expect(JSON.parse(String(requestOptions?.body))).toMatchObject({
+      amount: 25000,
+      currency: 'COP',
+    })
+    expect(requestOptions?.headers).toMatchObject({
+      'Idempotency-Key': 'idempotency-1',
+    })
+  })
 })

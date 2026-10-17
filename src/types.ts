@@ -23,6 +23,7 @@ export type PaymentStatus = 'CREATED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 
 export type CampaignUpdateMediaType = 'IMAGE' | 'VIDEO'
 export type ReceiptStatus = 'HELD' | 'SUCCESSFUL' | 'REFUNDED' | 'FAILED'
 export type SupportedCampaignStatusCode = CampaignStatus
+export type CampaignCurrencyStatus = 'CONFIGURED' | 'UNAVAILABLE'
 
 export interface User {
   id: string
@@ -122,6 +123,8 @@ export interface Campaign {
   deadline: string
   category: string
   mediaUrl: string | null
+  currency: string | null
+  currencyStatus: CampaignCurrencyStatus
   status: CampaignStatus
   publishedAt: string | null
   creator: User
@@ -139,6 +142,7 @@ export interface Draft {
   durationDays: number | null
   category: string
   mediaUrl: string | null
+  currency: string | null
   rewards: Reward[]
   completionPercentage: number
   savedAt: string
@@ -183,7 +187,8 @@ export interface SupportedCampaignCard {
   imageUrl: string | null
   title: string
   amountContributedByMe: number
-  currency: string
+  currency: string | null
+  currencyStatus: CampaignCurrencyStatus
   raisedAmount: number
   goalAmount: number
   totalRaisedPercentage: number
@@ -199,6 +204,24 @@ export interface PageResponse<T> {
   totalElements: number
   totalPages: number
   emptyMessage?: string | null
+}
+
+export interface OmittedCampaign {
+  campaignId: string
+  title: string
+  reasonCode: 'MIXED_CONFIRMED_CURRENCIES'
+  currencies: string[]
+}
+
+export interface SupportedCampaignWarning {
+  code: 'SUPPORTED_CAMPAIGNS_OMITTED'
+  message: string
+  affectedCampaignCount: number
+}
+
+export interface SupportedCampaignsResponse extends PageResponse<SupportedCampaignCard> {
+  omittedCampaigns: OmittedCampaign[]
+  warnings: SupportedCampaignWarning[]
 }
 
 export interface AuthResponse {
@@ -323,6 +346,7 @@ export interface DraftPayload {
   durationDays: number | null
   category: string
   mediaUrl: string | null
+  currency: string | null
   rewards: Array<{
     title: string
     description: string

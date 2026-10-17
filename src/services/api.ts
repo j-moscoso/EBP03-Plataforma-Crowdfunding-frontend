@@ -5,6 +5,7 @@ import type {
   CampaignUpdate,
   CampaignUpdateDto,
   CampaignUpdatePayload,
+  CampaignCurrencyStatus,
   Contribution,
   ContributionPayload,
   CreatorProfile,
@@ -21,12 +22,14 @@ import type {
   PasswordResetValidationResponse,
   Progress,
   SupportedCampaignCard,
+  SupportedCampaignsResponse,
   TransactionHistoryItem,
   User,
   UserRole,
   UpdateMePayload,
   UpdateMeResponse,
 } from '../types'
+import { isCurrencyCode } from '../utils/money'
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://localhost:8080' : '')
@@ -54,7 +57,17 @@ function normalizeUser(user: User): User {
 }
 
 function normalizeCampaign(campaign: Campaign): Campaign {
-  return { ...campaign, creator: normalizeUser(campaign.creator) }
+  const currency = typeof campaign.currency === 'string' ? campaign.currency.trim().toUpperCase() : null
+  const validCurrency = isCurrencyCode(currency) ? currency : null
+  if (currency !== null && validCurrency === null) {
+    console.error('La campaña recibió una moneda inválida.', { campaignId: campaign.id, currency })
+  }
+  return {
+    ...campaign,
+    currency: validCurrency,
+    currencyStatus: validCurrency && campaign.currencyStatus === 'CONFIGURED' ? 'CONFIGURED' : 'UNAVAILABLE',
+    creator: normalizeUser(campaign.creator),
+  }
 }
 
 function normalizeCreatorProfile(profile: CreatorProfileDto): CreatorProfile {
@@ -272,7 +285,20 @@ export const api = {
   contributions: (pageNumber = 0, pageSize = 10) =>
     page<TransactionHistoryItem>(`/api/contributions/me?page=${pageNumber}&pageSize=${pageSize}`),
   supportedCampaigns: (pageNumber = 0, pageSize = 10) =>
-    page<SupportedCampaignCard>(`/api/sponsors/me/supported-campaigns?page=${pageNumber}&pageSize=${pageSize}`),
+    request<SupportedCampaignsResponse>(`/api/sponsors/me/supported-campaigns?page=${pageNumber}&pageSize=${pageSize}`).then(response => ({
+      ...response,
+      omittedCampaigns: Array.isArray(response.omittedCampaigns) ? response.omittedCampaigns : [],
+      warnings: Array.isArray(response.warnings) ? response.warnings : [],
+      content: response.content.map(item => {
+        const receivedCurrency = typeof item.currency === 'string' ? item.currency.trim().toUpperCase() : null
+        const currency = isCurrencyCode(receivedCurrency) ? receivedCurrency : null
+        const currencyStatus: CampaignCurrencyStatus = currency ? 'CONFIGURED' : 'UNAVAILABLE'
+        if (receivedCurrency !== null && currency === null) {
+          console.error('El tablero recibió una moneda inválida.', { campaignId: item.campaignId, currency: receivedCurrency })
+        }
+        return { ...item, currency, currencyStatus }
+      }),
+    })),
   contribute: (
     campaignId: string,
     body: ContributionPayload,

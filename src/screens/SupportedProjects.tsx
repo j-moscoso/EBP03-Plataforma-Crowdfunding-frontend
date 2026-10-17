@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type {
-  PageResponse,
   Screen,
   SupportedCampaignCard as SupportedCampaignCardModel,
+  SupportedCampaignsResponse,
   SupportedCampaignStatusCode,
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
+import { formatMoneyExact } from '../utils/money'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
@@ -19,10 +20,6 @@ const statusStyles: Record<SupportedCampaignStatusCode, string> = {
   FAILED: 'bg-red-50 text-red-700 border-red-200',
   DRAFT: 'bg-gray-100 text-gray-700 border-gray-200',
   CANCELLED: 'bg-slate-100 text-slate-700 border-slate-200',
-}
-
-function exactAmount(amount: number, currency: string) {
-  return `${currency} ${amount.toLocaleString('es-ES', { maximumFractionDigits: 20 })}`
 }
 
 function exactPercentage(value: number) {
@@ -75,7 +72,7 @@ function SupportedCampaignCard({
         <div className="grid grid-cols-2 gap-3 mt-5">
           <div className="bg-primary-light/50 rounded-xl p-3">
             <p className="text-xs text-gray-500">Aportado por mí</p>
-            <p className="text-sm font-bold text-primary mt-1">{exactAmount(item.amountContributedByMe, item.currency)}</p>
+            <p className="text-sm font-bold text-primary mt-1">{formatMoneyExact(item.amountContributedByMe, item.currency)}</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
             <p className="text-xs text-gray-500">Recaudado</p>
@@ -88,7 +85,7 @@ function SupportedCampaignCard({
             <div className="h-full bg-primary rounded-full progress-bar" style={{ width: `${visualPercentage}%` }} />
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            <strong className="text-gray-700">{exactAmount(item.raisedAmount, item.currency)}</strong> de {exactAmount(item.goalAmount, item.currency)}
+            <strong className="text-gray-700">{formatMoneyExact(item.raisedAmount, item.currency)}</strong> de {formatMoneyExact(item.goalAmount, item.currency)}
           </p>
         </div>
 
@@ -121,7 +118,7 @@ function CardSkeletons() {
 }
 
 export default function SupportedProjects({ navigate, onSessionExpired }: Props) {
-  const [response, setResponse] = useState<PageResponse<SupportedCampaignCardModel> | null>(null)
+  const [response, setResponse] = useState<SupportedCampaignsResponse | null>(null)
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -170,6 +167,8 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
   }
 
   const items = response?.content ?? []
+  const omittedCampaigns = response?.omittedCampaigns ?? []
+  const warnings = response?.warnings ?? []
   return (
     <div className="min-h-screen bg-bg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -187,7 +186,25 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
             <p className="text-sm text-gray-500 mt-2">{error}</p>
             <button type="button" onClick={() => void load(page)} className="mt-5 bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary-hover">Reintentar</button>
           </div>
-        ) : items.length === 0 ? (
+        ) : (
+          <>
+            {omittedCampaigns.length > 0 && (
+              <section className="mb-6 rounded-2xl border border-yellow-200 bg-yellow-50 p-5 text-yellow-900" role="status" aria-live="polite">
+                <h2 className="font-display font-700">Hay campañas que no se muestran</h2>
+                <p className="text-sm mt-1">{warnings[0]?.message ?? 'Algunas campañas no se muestran porque tienen monedas confirmadas incompatibles.'}</p>
+                <ul className="mt-4 space-y-3">
+                  {omittedCampaigns.map(item => (
+                    <li key={item.campaignId} className="rounded-xl border border-yellow-200 bg-white/70 p-3 text-sm">
+                      <button type="button" onClick={() => navigate('campaign-page', item.campaignId)} className="font-semibold underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-primary/30 rounded">
+                        {item.title}
+                      </button>
+                      <p className="text-xs mt-1">Motivo: monedas confirmadas incompatibles ({item.currencies.join(', ')}).</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {items.length === 0 ? (
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm py-16 px-6 text-center">
             <div className="w-14 h-14 rounded-full bg-primary-light text-primary flex items-center justify-center mx-auto mb-4" aria-hidden="true">
               <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21s-7-4.4-7-11a4 4 0 017-2.6A4 4 0 0119 10c0 6.6-7 11-7 11z" /></svg>
@@ -196,11 +213,11 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
             <p className="text-sm text-gray-400 mt-2 mb-5">Descubre campañas activas y comienza a generar impacto.</p>
             <button type="button" onClick={() => navigate('projects')} className="bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary-hover">Explorar proyectos</button>
           </div>
-        ) : (
-          <>
+            ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {items.map(item => <SupportedCampaignCard key={item.campaignId} item={item} onOpen={() => navigate('campaign-page', item.campaignId)} />)}
             </div>
+            )}
             {response && response.totalPages > 1 && (
               <nav className="mt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-label="Paginación de proyectos apoyados">
                 <p className="text-xs text-gray-500">Página {response.page + 1} de {response.totalPages}</p>

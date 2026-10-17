@@ -10,6 +10,7 @@ import type {
   User,
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
+import { formatMoney, isCurrencyCode } from '../utils/money'
 
 interface Props {
   campaignId: string | null
@@ -67,7 +68,7 @@ function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaign
                   <p className="text-sm text-gray-500 mt-1 line-clamp-2">{campaign.description}</p>
                   <div className="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div className="h-full bg-primary" style={{ width: `${Math.min(campaign.progress.percentage, 100)}%` }} /></div>
                   <div className="flex justify-between text-xs text-gray-500 mt-2 mb-4">
-                    <span><strong className="text-gray-900">${campaign.progress.raisedAmount.toLocaleString()}</strong> de ${campaign.goalAmount.toLocaleString()}</span>
+                    <span><strong className="text-gray-900">{formatMoney(campaign.progress.raisedAmount, campaign.currency)}</strong> de {formatMoney(campaign.goalAmount, campaign.currency)}</span>
                     <span>{campaign.progress.percentage}%</span>
                   </div>
                   <button onClick={() => navigate('campaign-page', campaign.id)} className="w-full bg-primary text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-primary-hover">Ver campaña</button>
@@ -449,8 +450,13 @@ export default function CampaignPage(props: Props) {
     </div>
   )
 
-  const canContribute = user?.role === 'sponsor' && campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0
-  const cta = user?.role !== 'sponsor' ? 'Inicia sesión como patrocinador para aportar' : canContribute ? 'Apoyar este proyecto' : 'Campaña no disponible'
+  const currencyAvailable = campaign.currencyStatus === 'CONFIGURED' && isCurrencyCode(campaign.currency)
+  const canContribute = user?.role === 'sponsor' && campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0 && currencyAvailable
+  const cta = user?.role !== 'sponsor'
+    ? 'Inicia sesión como patrocinador para aportar'
+    : !currencyAvailable
+      ? 'Moneda pendiente de configuración'
+      : canContribute ? 'Apoyar este proyecto' : 'Campaña no disponible'
   return (
     <div className="min-h-screen bg-bg">
       <button onClick={() => navigate('projects')} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 block text-sm text-gray-500 hover:text-primary">← Volver a explorar</button>
@@ -473,7 +479,7 @@ export default function CampaignPage(props: Props) {
                 <div className="space-y-3">
                   {campaign.rewards.map(reward => (
                     <article key={reward.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                      <div className="flex justify-between gap-4"><h3 className="font-display font-700 text-gray-900">{reward.title}</h3><span className="font-display font-800 text-primary">${reward.minimumAmount.toLocaleString()}+</span></div>
+                      <div className="flex justify-between gap-4"><h3 className="font-display font-700 text-gray-900">{reward.title}</h3><span className="font-display font-800 text-primary">{formatMoney(reward.minimumAmount, campaign.currency)}+</span></div>
                       <p className="text-sm text-gray-500 mt-2">{reward.description}</p>
                       {reward.quantity != null && <p className="text-xs text-gray-400 mt-3">{reward.claimedQuantity ?? 0} de {reward.quantity} reclamadas</p>}
                     </article>
@@ -486,12 +492,12 @@ export default function CampaignPage(props: Props) {
           <aside>
             <div className="lg:sticky lg:top-20 bg-white rounded-2xl border border-gray-100 shadow-md p-6">
               <div className="flex items-end justify-between">
-                <p className="font-display font-800 text-3xl">${campaign.progress.raisedAmount.toLocaleString()}</p>
+                <p className="font-display font-800 text-3xl">{formatMoney(campaign.progress.raisedAmount, campaign.currency)}</p>
                 <p className="font-bold text-primary">{campaign.progress.percentage}%</p>
               </div>
-              <p className="text-xs text-gray-400">recaudados de ${campaign.goalAmount.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">recaudados de {formatMoney(campaign.goalAmount, campaign.currency)}</p>
               <div className="h-3 rounded-full bg-gray-100 overflow-hidden my-3"><div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(campaign.progress.percentage, 100)}%` }} /></div>
-              <p className="text-xs text-gray-500">Faltan <strong>${campaign.progress.remainingAmount.toLocaleString()}</strong></p>
+              <p className="text-xs text-gray-500">Faltan <strong>{formatMoney(campaign.progress.remainingAmount, campaign.currency)}</strong></p>
               <div className="grid grid-cols-2 gap-3 my-5">
                 <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="font-display font-700 text-xl">{campaign.progress.sponsorsCount}</p><p className="text-xs text-gray-500">Patrocinadores</p></div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="font-display font-700 text-sm text-primary">{campaign.status}</p><p className="text-xs text-gray-500">Estado</p></div>
@@ -499,6 +505,7 @@ export default function CampaignPage(props: Props) {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tiempo restante</p>
               <Countdown initialSeconds={campaign.progress.secondsRemaining} />
               <button disabled={!canContribute} onClick={() => navigate('payment-flow', campaign.id)} className="w-full mt-6 bg-primary text-white rounded-xl py-3 text-sm font-semibold hover:bg-primary-hover disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed">{cta}</button>
+              {!currencyAvailable && <p className="text-center text-xs text-warning mt-3">Esta campaña aún no permite aportes porque no tiene una moneda autorizada.</p>}
               {campaign.progress.percentage === 0 && <p className="text-center text-xs text-gray-400 mt-3">¡Sé el primero en apoyar este proyecto!</p>}
             </div>
           </aside>

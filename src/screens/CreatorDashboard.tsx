@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Campaign, CampaignStatus, Draft, Screen, User } from '../types'
 import { api, apiErrorMessage } from '../services/api'
+import { formatMoney } from '../utils/money'
 
 interface Props {
   user: User
@@ -25,7 +26,15 @@ export default function CreatorDashboard({ user, campaigns, drafts, loading, err
   const [showDrafts, setShowDrafts] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
-  const totalRaised = campaigns.reduce((total, campaign) => total + campaign.progress.raisedAmount, 0)
+  const totalsByCurrency = campaigns.reduce((totals, campaign) => {
+    if (campaign.currencyStatus === 'CONFIGURED' && campaign.currency) {
+      totals.set(campaign.currency, (totals.get(campaign.currency) ?? 0) + campaign.progress.raisedAmount)
+    }
+    return totals
+  }, new Map<string, number>())
+  const totalRaised = [...totalsByCurrency.entries()]
+    .map(([currency, amount]) => formatMoney(amount, currency))
+    .join(' · ') || 'Moneda no disponible'
 
   async function deleteDraft(id: string) {
     setDeletingId(id)
@@ -70,7 +79,7 @@ export default function CreatorDashboard({ user, campaigns, drafts, loading, err
 
         <div className="grid sm:grid-cols-3 gap-4 mb-8">
           {[
-            ['Total recaudado', `$${totalRaised.toLocaleString()}`],
+            ['Total recaudado', totalRaised],
             ['Campañas publicadas', String(campaigns.length)],
             ['Borradores', String(drafts.length)],
           ].map(([label, value]) => (
@@ -105,7 +114,7 @@ export default function CreatorDashboard({ user, campaigns, drafts, loading, err
                       <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-primary rounded-full progress-bar" style={{ width: `${Math.min(campaign.progress.percentage, 100)}%` }} />
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">${campaign.progress.raisedAmount.toLocaleString()} de ${campaign.goalAmount.toLocaleString()} · {campaign.progress.percentage}%</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatMoney(campaign.progress.raisedAmount, campaign.currency)} de {formatMoney(campaign.goalAmount, campaign.currency)} · {campaign.progress.percentage}%</p>
                     </div>
                     <button onClick={() => navigate('campaign-page', campaign.id)} className="text-xs font-semibold text-primary border border-primary rounded-lg px-4 py-2">Ver detalle</button>
                   </div>

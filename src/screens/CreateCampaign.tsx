@@ -22,6 +22,7 @@ interface Errors {
   goal?: string
   duration?: string
   category?: string
+  currency?: string
   rewards: Record<string, string>
 }
 
@@ -36,6 +37,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
   const [duration, setDuration] = useState(initialDraft?.durationDays?.toString() ?? '')
   const [category, setCategory] = useState(initialDraft?.category ?? '')
   const [mediaUrl, setMediaUrl] = useState(initialDraft?.mediaUrl ?? '')
+  const [currency, setCurrency] = useState(initialDraft?.currency ?? '')
   const [rewards, setRewards] = useState<FormReward[]>(
     initialDraft?.rewards.map(reward => ({ ...reward, minimumAmount: String(reward.minimumAmount) })) ??
       [{ id: crypto.randomUUID(), title: '', description: '', minimumAmount: '' }],
@@ -54,6 +56,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
     if (!duration) next.duration = 'Este campo es obligatorio.'
     else if (!/^\d+$/.test(duration) || Number(duration) <= 0) next.duration = 'Ingresa una duración positiva en días.'
     if (!category) next.category = 'Este campo es obligatorio.'
+    if (forPublish && !/^[A-Za-z]{3}$/.test(currency.trim())) next.currency = 'Configura una moneda de tres letras para publicar.'
     rewards.forEach(reward => {
       const hasAny = Boolean(reward.title || reward.description || reward.minimumAmount)
       if (!hasAny) return
@@ -73,6 +76,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
       durationDays: duration ? Number(duration) : null,
       category,
       mediaUrl: mediaUrl.trim() || null,
+      currency: currency.trim() ? currency.trim().toUpperCase() : null,
       rewards: rewards
         .filter(reward => reward.title && reward.minimumAmount)
         .map(reward => ({
@@ -155,6 +159,12 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Título</label>
               <input value={title} onChange={event => setTitle(event.target.value)} className={input(errors.title)} placeholder="Nombre de tu campaña" />
               {errors.title && <p className="text-xs text-error mt-1">{errors.title}</p>}
+            </div>
+            <div>
+              <label htmlFor="campaign-currency" className="block text-sm font-medium text-gray-700 mb-1.5">Moneda de la campaña</label>
+              <input id="campaign-currency" value={currency} maxLength={3} onChange={event => setCurrency(event.target.value.toUpperCase())} className={input(errors.currency)} placeholder="COP" />
+              <p className="text-xs text-gray-400 mt-1">Se usará como moneda autoritativa de los aportes.</p>
+              {errors.currency && <p className="text-xs text-error mt-1">{errors.currency}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Descripción <span className="text-gray-400">{description.length}/2000</span></label>
