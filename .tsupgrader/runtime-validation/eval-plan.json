@@ -2,13 +2,7 @@
   "generatedAt": "2026-10-17T07:41:00Z",
   "generatedOnPlatform": "win32",
   "projectType": "webapp",
-  "setup": [
-    {
-      "command": "npm",
-      "args": ["ci"],
-      "timeoutSeconds": 600
-    }
-  ],
+  "setup": [],
   "assertions": [
     {
       "name": "typescript-check",

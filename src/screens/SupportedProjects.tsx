@@ -7,6 +7,7 @@ import type {
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
 import { formatMoneyExact } from '../utils/money'
+import CampaignMedia from '../components/CampaignMedia'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
@@ -27,28 +28,7 @@ function exactPercentage(value: number) {
 }
 
 function ProjectImage({ item }: { item: SupportedCampaignCardModel }) {
-  const [failed, setFailed] = useState(false)
-  if (!item.imageUrl || failed) {
-    return (
-      <div className="aspect-video bg-gray-100 flex flex-col items-center justify-center text-center px-5" role="img" aria-label={`Proyecto ${item.title} sin imagen disponible`}>
-        <svg className="w-9 h-9 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.6-4.6a2 2 0 012.8 0L16 16m-2-2l1.6-1.6a2 2 0 012.8 0L20 14m-14 6h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        <p className="text-xs text-gray-500">Imagen no disponible</p>
-      </div>
-    )
-  }
-  return (
-    <div className="aspect-video bg-gray-100 overflow-hidden">
-      <img
-        src={item.imageUrl}
-        alt={`Portada de ${item.title}`}
-        className="w-full h-full object-cover"
-        loading="lazy"
-        onError={() => setFailed(true)}
-      />
-    </div>
-  )
+  return <CampaignMedia url={item.imageUrl} mediaType={item.mediaType} title={item.title} className="aspect-video" />
 }
 
 function SupportedCampaignCard({

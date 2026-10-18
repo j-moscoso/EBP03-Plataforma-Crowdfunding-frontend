@@ -18,6 +18,7 @@ export type Screen =
 export type UserRole = 'creator' | 'sponsor'
 export type VerificationStatus = 'pending' | 'verified'
 export type CampaignStatus = 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'SUCCESSFUL' | 'FAILED' | 'CANCELLED'
+export type CampaignMediaType = 'IMAGE' | 'VIDEO'
 export type ContributionStatus = 'PENDING' | 'CONFIRMED' | 'FAILED' | 'REFUNDED'
 export type PaymentStatus = 'CREATED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'
 export type CampaignUpdateMediaType = 'IMAGE' | 'VIDEO'
@@ -123,6 +124,7 @@ export interface CampaignSummary {
   deadline: string
   category: string
   mediaUrl: string | null
+  mediaType: CampaignMediaType
   currency: string | null
   currencyStatus: CampaignCurrencyStatus
   status: CampaignStatus
@@ -138,6 +140,7 @@ export interface Campaign {
   deadline: string
   category: string
   mediaUrl: string | null
+  mediaType: CampaignMediaType
   currency: string | null
   currencyStatus: CampaignCurrencyStatus
   status: CampaignStatus
@@ -157,6 +160,7 @@ export interface Draft {
   durationDays: number | null
   category: string
   mediaUrl: string | null
+  mediaType: CampaignMediaType
   currency: string | null
   rewards: Reward[]
   completionPercentage: number
@@ -200,6 +204,7 @@ export interface TransactionHistoryItem {
 export interface SupportedCampaignCard {
   campaignId: string
   imageUrl: string | null
+  mediaType: CampaignMediaType
   title: string
   amountContributedByMe: number
   currency: string | null
@@ -361,6 +366,7 @@ export interface DraftPayload {
   durationDays: number | null
   category: string
   mediaUrl: string | null
+  mediaType: CampaignMediaType
   currency: string | null
   rewards: Array<{
     title: string

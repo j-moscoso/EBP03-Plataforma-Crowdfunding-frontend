@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { Campaign, Draft, DraftPayload, Screen } from '../types'
+import type { Campaign, CampaignMediaType, Draft, DraftPayload, Screen } from '../types'
 import { api, apiErrorMessage } from '../services/api'
+import CampaignMedia from '../components/CampaignMedia'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
@@ -37,6 +38,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
   const [duration, setDuration] = useState(initialDraft?.durationDays?.toString() ?? '')
   const [category, setCategory] = useState(initialDraft?.category ?? '')
   const [mediaUrl, setMediaUrl] = useState(initialDraft?.mediaUrl ?? '')
+  const [mediaType, setMediaType] = useState<CampaignMediaType>(initialDraft?.mediaType ?? 'IMAGE')
   const [currency, setCurrency] = useState(initialDraft?.currency ?? '')
   const [rewards, setRewards] = useState<FormReward[]>(
     initialDraft?.rewards.map(reward => ({ ...reward, minimumAmount: String(reward.minimumAmount) })) ??
@@ -76,6 +78,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
       durationDays: duration ? Number(duration) : null,
       category,
       mediaUrl: mediaUrl.trim() || null,
+      mediaType,
       currency: currency.trim() ? currency.trim().toUpperCase() : null,
       rewards: rewards
         .filter(reward => reward.title && reward.minimumAmount)
@@ -202,9 +205,14 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
 
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <h2 className="font-display font-700 text-lg mb-5">4. Medios</h2>
-            <label className="block text-sm font-medium mb-1.5">URL opcional de imagen o video</label>
+            <label className="block text-sm font-medium mb-1.5">URL HTTPS opcional de imagen, video MP4/WebM/OGG, YouTube o Vimeo</label>
             <input type="url" value={mediaUrl} onChange={event => setMediaUrl(event.target.value)} className={input()} placeholder="https://..." />
-            {mediaUrl && <div className="mt-4 h-44 bg-gray-100 rounded-xl overflow-hidden"><img src={mediaUrl} alt="Vista previa" className="w-full h-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} /></div>}
+            <label className="block text-sm font-medium mt-4 mb-1.5" htmlFor="campaign-media-type">Tipo de medio</label>
+            <select id="campaign-media-type" value={mediaType} onChange={event => setMediaType(event.target.value === 'VIDEO' ? 'VIDEO' : 'IMAGE')} className={input()}>
+              <option value="IMAGE">Imagen</option>
+              <option value="VIDEO">Video</option>
+            </select>
+            {mediaUrl && <CampaignMedia url={mediaUrl} mediaType={mediaType} title={title || 'campaña'} className="mt-4 h-44 rounded-xl" />}
           </section>
         </div>
       </div>

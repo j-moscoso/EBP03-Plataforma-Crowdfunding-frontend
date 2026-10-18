@@ -256,6 +256,41 @@ describe('frontend API integration contracts', () => {
     })
   })
 
+  it('loads published-update notifications and maps their read state for the navbar', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      content: [{
+        id: 'notification-1',
+        type: 'CAMPAIGN_UPDATE_PUBLISHED',
+        title: 'Nuevo avance',
+        body: 'La campaña publicó una actualización.',
+        campaignId: 'campaign-1',
+        campaignUpdateId: 'update-1',
+        readAt: null,
+        createdAt: '2026-10-16T03:10:00Z',
+      }],
+      page: 0,
+      pageSize: 20,
+      totalElements: 1,
+      totalPages: 1,
+    }))
+
+    const response = await api.notifications()
+    const [url, options] = fetchMock.mock.calls[0] ?? []
+
+    expect(response.content[0]).toEqual({
+      id: 'notification-1',
+      type: 'CAMPAIGN_UPDATE_PUBLISHED',
+      title: 'Nuevo avance',
+      body: 'La campaña publicó una actualización.',
+      campaignId: 'campaign-1',
+      campaignUpdateId: 'update-1',
+      createdAt: '2026-10-16T03:10:00Z',
+      read: false,
+    })
+    expect(url).toContain('/api/notifications/me?page=0&pageSize=20&unreadOnly=false')
+    expect(options?.credentials).toBe('include')
+  })
+
   it('maps supported-campaign empty responses without changing their message', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       content: [],

@@ -12,6 +12,7 @@ import type {
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
 import { formatMoney, isCurrencyCode } from '../utils/money'
+import CampaignMedia, { isPublicHttpsUrl } from '../components/CampaignMedia'
 
 interface Props {
   campaignId: string | null
@@ -60,9 +61,7 @@ function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaign
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {campaigns.map(campaign => (
               <article key={campaign.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                <div className="h-48 bg-gray-100 overflow-hidden">
-                  {campaign.mediaUrl ? <img src={campaign.mediaUrl} alt={campaign.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200" />}
-                </div>
+                <CampaignMedia url={campaign.mediaUrl} mediaType={campaign.mediaType} title={campaign.title} className="h-48" />
                 <div className="p-5">
                   <span className="text-xs font-semibold text-primary bg-primary-light px-2.5 py-1 rounded-full">{campaign.category}</span>
                   <h2 className="font-display font-700 text-gray-900 mt-3 line-clamp-2">{campaign.title}</h2>
@@ -83,55 +82,14 @@ function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaign
   )
 }
 
-function isSafeMediaUrl(value: string) {
-  try {
-    const parsed = new URL(value)
-    return parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function mediaDomain(value: string) {
-  try {
-    const parsed = new URL(value)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.hostname : ''
-  } catch {
-    return ''
-  }
-}
-
 function SafeMedia({ media, title }: { media: CampaignUpdateMedia; title: string }) {
-  const [failed, setFailed] = useState(false)
-  if (!isSafeMediaUrl(media.url) || failed) {
-    return (
-      <div className="min-h-36 bg-gray-100 rounded-xl flex items-center justify-center px-4 text-center">
-        <p className="text-xs text-gray-500">No pudimos mostrar este medio.</p>
-      </div>
-    )
-  }
-  if (media.type === 'IMAGE') {
-    return (
-      <img
-        src={media.url}
-        alt={`Imagen de la actualización: ${title}`}
-        className="w-full max-h-96 object-cover rounded-xl bg-gray-100"
-        loading="lazy"
-        onError={() => setFailed(true)}
-      />
-    )
-  }
   return (
-    <div className="min-h-36 bg-gray-900 rounded-xl flex flex-col items-center justify-center px-5 py-8 text-center">
-      <svg className="w-9 h-9 text-white mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.75 9l-5.5-3.25v6.5L14.75 9zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <p className="text-sm font-semibold text-white">Video externo</p>
-      <p className="text-xs text-gray-300 mt-1">{mediaDomain(media.url)}</p>
-      <a href={media.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-xs font-semibold bg-white text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-white/40">
-        Abrir video de forma segura
-      </a>
-    </div>
+    <CampaignMedia
+      url={media.url}
+      mediaType={media.type}
+      title={title}
+      className="w-full aspect-video rounded-xl"
+    />
   )
 }
 
@@ -214,7 +172,7 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
       const rowErrors: string[] = []
       if (item.type !== 'IMAGE' && item.type !== 'VIDEO') rowErrors.push('Selecciona un tipo de medio válido.')
       if (!item.url.trim()) rowErrors.push('La URL del medio es obligatoria.')
-      else if (!isSafeMediaUrl(item.url.trim())) rowErrors.push('Usa una URL absoluta HTTPS. No se permiten otros esquemas.')
+      else if (!isPublicHttpsUrl(item.url.trim())) rowErrors.push('Usa una URL HTTPS pública. No se permiten localhost ni otros esquemas.')
       if (rowErrors.length) next.media[item.localId] = rowErrors
     })
     setErrors(next)
@@ -357,7 +315,7 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
                         </div>
                       </div>
                       <div id={`${item.localId}-errors`}>{rowErrors.map(message => <p key={message} className="text-xs text-error mt-1">{message}</p>)}</div>
-                      {isSafeMediaUrl(item.url) && <div className="mt-3"><SafeMedia media={{ type: item.type, url: item.url, sortOrder: index }} title={title || 'Vista previa'} /></div>}
+                      {isPublicHttpsUrl(item.url) && <div className="mt-3"><SafeMedia media={{ type: item.type, url: item.url, sortOrder: index }} title={title || 'Vista previa'} /></div>}
                     </div>
                   )
                 })}
@@ -462,7 +420,7 @@ export default function CampaignPage(props: Props) {
     <div className="min-h-screen bg-bg">
       <button onClick={() => navigate('projects')} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 block text-sm text-gray-500 hover:text-primary">← Volver a explorar</button>
       {campaign.mediaUrl ? (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5"><img src={campaign.mediaUrl} alt={campaign.title} className="w-full h-64 sm:h-96 object-cover rounded-2xl bg-gray-100" /></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5"><CampaignMedia url={campaign.mediaUrl} mediaType={campaign.mediaType} title={campaign.title} className="w-full h-64 sm:h-96 rounded-2xl" /></div>
       ) : <div className="max-w-7xl mx-auto h-20" />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
