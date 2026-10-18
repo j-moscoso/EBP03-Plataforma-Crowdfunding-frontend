@@ -1,17 +1,17 @@
 {
-  "planHash": "5a54170c4d3159bdc6866fd406f2b0d08055f88b773e700f93d3847e06616e55",
+  "planHash": "01ccf77aaa781f2b18115ea164baa1568fed2167b83b6e410f43e673e89622f5",
   "phase": "standalone",
-  "recordedAtUtc": "2026-10-17T07:47:38.3932428Z",
-  "retryCount": 2,
+  "recordedAtUtc": "2026-10-18T01:45:19.1968955Z",
+  "retryCount": 1,
   "resetBaseline": false,
   "complete": true,
   "result": {
     "setupSucceeded": true,
-    "setupDurationMs": 181,
+    "setupDurationMs": 20628,
     "setupFailureOutput": null,
     "assertions": [
       {
-        "name": "typescript-no-emit",
+        "name": "typescript-check",
         "kind": "process",
         "verificationMethod": "exit-code",
         "passed": true,
@@ -20,7 +20,7 @@
         "skippedReason": null,
         "exitCode": 0,
         "outputSample": "",
-        "durationMs": 3856
+        "durationMs": 7162
       },
       {
         "name": "production-build",
@@ -31,8 +31,8 @@
         "skipped": false,
         "skippedReason": null,
         "exitCode": 0,
-        "outputSample": "$ vite build\r\n\u001B[36mvite v8.0.5 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\n\u001B[2K\r\ntransforming...\u2713 32 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                   0.49 kB \u2502 gzip:  0.30 kB\r\ndist/assets/index-BgA2VKcJ.css   34.27 kB \u2502 gzip:  7.16 kB\r\ndist/assets/index-C0i3I9xt.js   339.26 kB \u2502 gzip: 90.11 kB\r\n\r\n\u001B[32m\u2713 built in 399ms\u001B[39m\r\n",
-        "durationMs": 1452
+        "outputSample": "\r\n\u003E figma-make-app@1.0.0 build\r\n\u003E vite build\r\n\r\n\u001B[33m(!) Your Vite config uses features that are unsupported by \u0060configLoader: \u0027native\u0027\u0060, which is planned to become the default in a future major version of Vite:\r\n  - \u0060__dirname\u0060 (vite.config.ts:45:27). Use \u0060import.meta.dirname\u0060 instead\r\n  - JSON import \u0022./.figma/make/site.json\u0022 without import attributes (vite.config.ts:9:31). Add \u0060with { type: \u0027json\u0027 }\u0060\r\nSet \u0060VITE_CONFIG_NATIVE_IGNORE_WARNING=true\u0060 to suppress this warning.\u001B[39m\r\n\u001B[36mvite v8.3.0 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\ntransforming...\r\n\u2713 33 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                   0.49 kB \u2502 gzip:  0.30 kB\r\ndist/assets/index-dcacnS4B.css   34.47 kB \u2502 gzip:  7.25 kB\r\ndist/assets/index-AtsFQ9_H.js   372.33 kB \u2502 gzip: 99.50 kB\r\n\r\n\u001B[32m\u2713 built in 2.88s\u001B[39m\r\n",
+        "durationMs": 4783
       },
       {
         "name": "tests-pass",
@@ -43,20 +43,20 @@
         "skipped": false,
         "skippedReason": null,
         "exitCode": 0,
-        "outputSample": "$ vitest run\r\n\r\n RUN  v4.1.12 C:/Users/ASUS/Documents/GitHub/EBP03-Plataforma-Crowdfunding-frontend\r\n\r\n\r\n Test Files  1 passed (1)\r\n      Tests  6 passed (6)\r\n   Start at  02:47:36\r\n   Duration  440ms (transform 72ms, setup 0ms, import 116ms, tests 34ms, environment 0ms)\r\n\r\n",
-        "durationMs": 1446,
+        "outputSample": "\r\n\u003E figma-make-app@1.0.0 test\r\n\u003E vitest run\r\n\r\n\u001B[33m(!) Your Vite config uses features that are unsupported by \u0060configLoader: \u0027native\u0027\u0060, which is planned to become the default in a future major version of Vite:\r\n  - \u0060__dirname\u0060 (vite.config.ts:45:27). Use \u0060import.meta.dirname\u0060 instead\r\n  - JSON import \u0022./.figma/make/site.json\u0022 without import attributes (vite.config.ts:9:31). Add \u0060with { type: \u0027json\u0027 }\u0060\r\nSet \u0060VITE_CONFIG_NATIVE_IGNORE_WARNING=true\u0060 to suppress this warning.\u001B[39m\r\n\r\n RUN  v4.1.12 C:/Users/SAMUEL/OneDrive/Documentos/ProyectosUdea/FabricaEscuela-EBP03-2026/EPB03-Plataforma-Crowdfunding-frontend/EBP03-Plataforma-Crowdfunding-frontend\r\n\r\n\r\n Test Files  1 passed (1)\r\n      Tests  13 passed (13)\r\n   Start at  20:45:15\r\n   Duration  937ms (transform 123ms, setup 0ms, import 159ms, tests 57ms, environment 0ms)\r\n\r\n",
+        "durationMs": 3199,
         "testResults": {
           "testFramework": "vitest",
           "runnerDetectedFrom": "package_json",
-          "testsTotal": 6,
-          "testsPassed": 6,
+          "testsTotal": 13,
+          "testsPassed": 13,
           "testsFailed": 0,
           "testsSkipped": 0,
           "parseFailed": false
         }
       },
       {
-        "name": "dev-server-serves-home",
+        "name": "spa-project-route",
         "kind": "http-probe",
         "verificationMethod": "http-status",
         "passed": true,
@@ -64,71 +64,73 @@
         "skipped": false,
         "skippedReason": null,
         "exitCode": null,
-        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\r\n\u003Chtml lang=\u0022en\u0022\u003E\r\n  \u003Chead\u003E\n    \u003Cscript type=\u0022module\u0022\u003Eimport { injectIntoGlobalHook } from \u0022/@react-refresh\u0022;\ninjectIntoGlobalHook(window);\nwindow.$RefreshReg$ = () =\u003E {};\nwindow.$RefreshSig$ = () =\u003E (type) =\u003E type;\u003C/script\u003E\n\n    \u003Cscript type=\u0022module\u0022 src=\u0022/@vite/client\u0022\u003E\u003C/script\u003E\n\r\n    \r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\r\n    \u003Ctitle\u003EFigma Make App\u003C/title\u003E\r\n    \r\n    \u003Cmeta property=\u0022og:title\u0022 content=\u0022Figma Make App\u0022\u003E\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \r\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\r\n    \u003Cscript type=\u0022module\u0022 src=\u0022/src/main.tsx\u0022\u003E\u003C/script\u003E\r\n    \r\n  \u003C/body\u003E\r\n\u003C/html\u003E\r\n\n--- server output ---\n\r\n  \u001B[32m\u001B[1mVITE\u001B[22m v8.0.5\u001B[39m  \u001B[2mready in \u001B[0m\u001B[1m796\u001B[22m\u001B[2m\u001B[0m ms\u001B[22m\r\n\r\n  \u001B[32m\u279C\u001B[39m  \u001B[1mLocal\u001B[22m:   \u001B[36mhttp://127.0.0.1:\u001B[1m5187\u001B[22m/\u001B[39m\r\n",
-        "durationMs": 1076
+        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\r\n\u003Chtml lang=\u0022en\u0022\u003E\r\n  \u003Chead\u003E\r\n    \r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\r\n    \u003Ctitle\u003EFigma Make App\u003C/title\u003E\r\n    \r\n    \u003Cmeta property=\u0022og:title\u0022 content=\u0022Figma Make App\u0022\u003E\n    \u003Cscript type=\u0022module\u0022 crossorigin src=\u0022/assets/index-AtsFQ9_H.js\u0022\u003E\u003C/script\u003E\n    \u003Clink rel=\u0022stylesheet\u0022 crossorigin href=\u0022/assets/index-dcacnS4B.css\u0022\u003E\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \r\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\r\r\n    \r\n  \u003C/body\u003E\r\n\u003C/html\u003E\r\n\n--- server output ---\n\r\n\u003E figma-make-app@1.0.0 preview\r\n\u003E vite preview --host 127.0.0.1 --port 5187 --strictPort\r\n\r\n\u001B[33m(!) Your Vite config uses features that are unsupported by \u0060configLoader: \u0027native\u0027\u0060, which is planned to become the default in a future major version of Vite:\r\n  - \u0060__dirname\u0060 (vite.config.ts:45:27). Use \u0060import.meta.dirname\u0060 instead\r\n  - JSON import \u0022./.figma/make/site.json\u0022 without import attributes (vite.config.ts:9:31). Add \u0060with { type: \u0027json\u0027 }\u0060\r\nSet \u0060VITE_CONFIG_NATIVE_IGNORE_WARNING=true\u0060 to suppress this warning.\u001B[39m\r\n  \u001B[32m\u279C\u001B[39m  \u001B[1mLocal\u001B[22m:   \u001B[36mhttp://127.0.0.1:\u001B[1m5187\u001B[22m/\u001B[39m\r\n",
+        "durationMs": 2175
       }
     ],
     "executions": [
       {
         "source": "setup[0]",
-        "resolvedExecutable": "C:\\Users\\ASUS\\AppData\\Roaming\\npm\\pnpm.CMD",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
         "args": [
-          "install",
-          "--frozen-lockfile"
+          "ci"
         ],
-        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
         "platform": "win32"
       },
       {
-        "source": "typescript-no-emit",
-        "resolvedExecutable": "C:\\Users\\ASUS\\AppData\\Roaming\\npm\\pnpm.CMD",
+        "source": "typescript-check",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
         "args": [
           "exec",
+          "--",
           "tsc",
           "--noEmit"
         ],
-        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
         "platform": "win32"
       },
       {
         "source": "production-build",
-        "resolvedExecutable": "C:\\Users\\ASUS\\AppData\\Roaming\\npm\\pnpm.CMD",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
         "args": [
           "run",
           "build"
         ],
-        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
         "platform": "win32"
       },
       {
         "source": "tests-pass",
-        "resolvedExecutable": "C:\\Users\\ASUS\\AppData\\Roaming\\npm\\pnpm.CMD",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
         "args": [
           "test"
         ],
-        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
         "platform": "win32"
       },
       {
-        "source": "dev-server-serves-home",
-        "resolvedExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "source": "spa-project-route",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
         "args": [
-          "node_modules/vite/bin/vite.js",
+          "run",
+          "preview",
+          "--",
           "--host",
           "127.0.0.1",
           "--port",
           "5187",
           "--strictPort"
         ],
-        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
         "platform": "win32"

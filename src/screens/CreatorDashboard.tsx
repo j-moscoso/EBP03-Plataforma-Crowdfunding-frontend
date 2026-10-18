@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import type { Campaign, CampaignStatus, Draft, Screen, User } from '../types'
+import type { CampaignSummary, CampaignStatus, Draft, Screen, User } from '../types'
 import { api, apiErrorMessage } from '../services/api'
 import { formatMoney } from '../utils/money'
 
 interface Props {
   user: User
-  campaigns: Campaign[]
+  campaigns: CampaignSummary[]
   drafts: Draft[]
   loading: boolean
   error: string

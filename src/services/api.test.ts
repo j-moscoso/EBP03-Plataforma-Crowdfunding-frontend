@@ -20,6 +20,90 @@ afterEach(() => {
 })
 
 describe('frontend API integration contracts', () => {
+  it('loads public campaign summaries without requiring detail-only fields', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      content: [{
+        id: 'campaign-summary-1',
+        title: 'Huerta comunitaria',
+        description: 'Una campaña',
+        goalAmount: 100000,
+        deadline: '2026-12-01T00:00:00Z',
+        category: 'COMMUNITY',
+        mediaUrl: null,
+        currency: ' cop ',
+        currencyStatus: 'CONFIGURED',
+        status: 'ACTIVE',
+        publishedAt: '2026-10-16T03:00:00Z',
+        progress: {
+          raisedAmount: 25000,
+          remainingAmount: 75000,
+          percentage: 25,
+          sponsorsCount: 1,
+          secondsRemaining: 1000,
+        },
+      }],
+      page: 0,
+      pageSize: 10,
+      totalElements: 1,
+      totalPages: 1,
+    }))
+
+    const response = await api.campaigns()
+
+    expect(response.content[0]).toMatchObject({
+      id: 'campaign-summary-1',
+      currency: 'COP',
+      currencyStatus: 'CONFIGURED',
+      progress: { raisedAmount: 25000, percentage: 25 },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/campaigns?page=0&pageSize=10&status=ACTIVE'),
+      expect.objectContaining({ credentials: 'include' }),
+    )
+  })
+
+  it('loads creator campaign summaries so draft loading can complete independently', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      content: [{
+        id: 'campaign-summary-2',
+        title: 'Energía limpia',
+        description: 'Paneles comunitarios',
+        goalAmount: 200000,
+        deadline: '2026-12-01T00:00:00Z',
+        category: 'COMMUNITY',
+        mediaUrl: null,
+        currency: 'USD',
+        currencyStatus: 'CONFIGURED',
+        status: 'ACTIVE',
+        publishedAt: '2026-10-16T03:00:00Z',
+        progress: {
+          raisedAmount: 50000,
+          remainingAmount: 150000,
+          percentage: 25,
+          sponsorsCount: 2,
+          secondsRemaining: 1000,
+        },
+      }],
+      page: 0,
+      pageSize: 10,
+      totalElements: 1,
+      totalPages: 1,
+    }))
+
+    const response = await api.campaignsMine()
+
+    expect(response.content[0]).toMatchObject({
+      id: 'campaign-summary-2',
+      title: 'Energía limpia',
+      currency: 'USD',
+      progress: { raisedAmount: 50000, percentage: 25 },
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/campaigns/mine?page=0&pageSize=10'),
+      expect.objectContaining({ credentials: 'include' }),
+    )
+  })
+
   it('extracts the public user from the PATCH response wrapper', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       message: 'Datos actualizados',

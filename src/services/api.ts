@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   AuthResponse,
   Campaign,
+  CampaignSummary,
   CampaignUpdate,
   CampaignUpdateDto,
   CampaignUpdatePayload,
@@ -67,6 +68,19 @@ function normalizeCampaign(campaign: Campaign): Campaign {
     currency: validCurrency,
     currencyStatus: validCurrency && campaign.currencyStatus === 'CONFIGURED' ? 'CONFIGURED' : 'UNAVAILABLE',
     creator: normalizeUser(campaign.creator),
+  }
+}
+
+function normalizeCampaignSummary(campaign: CampaignSummary): CampaignSummary {
+  const currency = typeof campaign.currency === 'string' ? campaign.currency.trim().toUpperCase() : null
+  const validCurrency = isCurrencyCode(currency) ? currency : null
+  if (currency !== null && validCurrency === null) {
+    console.error('La campaña recibió una moneda inválida.', { campaignId: campaign.id, currency })
+  }
+  return {
+    ...campaign,
+    currency: validCurrency,
+    currencyStatus: validCurrency && campaign.currencyStatus === 'CONFIGURED' ? 'CONFIGURED' : 'UNAVAILABLE',
   }
 }
 
@@ -231,12 +245,12 @@ export const api = {
     )
   },
   async campaigns() {
-    const result = await page<Campaign>('/api/campaigns?page=0&pageSize=10&status=ACTIVE')
-    return { ...result, content: result.content.map(normalizeCampaign) }
+    const result = await page<CampaignSummary>('/api/campaigns?page=0&pageSize=10&status=ACTIVE')
+    return { ...result, content: result.content.map(normalizeCampaignSummary) }
   },
   async campaignsMine() {
-    const result = await page<Campaign>('/api/campaigns/mine?page=0&pageSize=10')
-    return { ...result, content: result.content.map(normalizeCampaign) }
+    const result = await page<CampaignSummary>('/api/campaigns/mine?page=0&pageSize=10')
+    return { ...result, content: result.content.map(normalizeCampaignSummary) }
   },
   async campaign(id: string) {
     return normalizeCampaign(await request<Campaign>(`/api/campaigns/${encodeURIComponent(id)}`))

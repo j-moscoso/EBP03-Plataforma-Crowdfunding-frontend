@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type {
   Campaign,
+  CampaignSummary,
   CampaignUpdate,
   CampaignUpdateMedia,
   CampaignUpdateMediaType,
@@ -14,7 +15,7 @@ import { formatMoney, isCurrencyCode } from '../utils/money'
 
 interface Props {
   campaignId: string | null
-  campaigns: Campaign[]
+  campaigns: CampaignSummary[]
   loading: boolean
   error: string
   navigate: (screen: Screen, id?: string | null) => void

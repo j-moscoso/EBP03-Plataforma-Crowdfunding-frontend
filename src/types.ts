@@ -115,6 +115,21 @@ export interface Progress {
   status: CampaignStatus
 }
 
+export interface CampaignSummary {
+  id: string
+  title: string
+  description: string
+  goalAmount: number
+  deadline: string
+  category: string
+  mediaUrl: string | null
+  currency: string | null
+  currencyStatus: CampaignCurrencyStatus
+  status: CampaignStatus
+  publishedAt: string | null
+  progress: Pick<Progress, 'raisedAmount' | 'remainingAmount' | 'percentage' | 'sponsorsCount' | 'secondsRemaining'>
+}
+
 export interface Campaign {
   id: string
   title: string

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Campaign, Draft, Screen, User } from './types'
+import type { Campaign, CampaignSummary, Draft, Screen, User } from './types'
 import { ApiError, api, apiErrorMessage } from './services/api'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -83,8 +83,8 @@ export default function App() {
   const [route, setRoute] = useState(() => routeFromPath(location.pathname, location.search))
   const [sessionLoading, setSessionLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [mine, setMine] = useState<Campaign[]>([])
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([])
+  const [mine, setMine] = useState<CampaignSummary[]>([])
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [privateLoading, setPrivateLoading] = useState(false)
