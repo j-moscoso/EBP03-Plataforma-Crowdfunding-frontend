@@ -300,8 +300,8 @@ export const api = {
     request<void>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }),
   contributions: (pageNumber = 0, pageSize = 10) =>
     page<TransactionHistoryItem>(`/api/contributions/me?page=${pageNumber}&pageSize=${pageSize}`),
-  supportedCampaigns: (pageNumber = 0, pageSize = 10) =>
-    request<SupportedCampaignsResponse>(`/api/sponsors/me/supported-campaigns?page=${pageNumber}&pageSize=${pageSize}`).then(response => ({
+  supportedCampaigns: (pageNumber = 0, pageSize = 10, signal?: AbortSignal) =>
+    request<SupportedCampaignsResponse>(`/api/sponsors/me/supported-campaigns?page=${pageNumber}&pageSize=${pageSize}`, { signal }).then(response => ({
       ...response,
       omittedCampaigns: Array.isArray(response.omittedCampaigns) ? response.omittedCampaigns : [],
       warnings: Array.isArray(response.warnings) ? response.warnings : [],

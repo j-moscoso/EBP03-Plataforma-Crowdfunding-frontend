@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type {
   Screen,
   SupportedCampaignCard as SupportedCampaignCardModel,
@@ -103,20 +103,32 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [forbidden, setForbidden] = useState(false)
+  const activeRequest = useRef<AbortController | null>(null)
 
   async function load(targetPage: number) {
+    activeRequest.current?.abort()
+    const controller = new AbortController()
+    activeRequest.current = controller
     setLoading(true)
     setError('')
     setForbidden(false)
     setResponse(null)
     setPage(targetPage)
     try {
-      const result = await api.supportedCampaigns(targetPage, 10)
+      const result = await api.supportedCampaigns(targetPage, 10, controller.signal)
+      if (controller.signal.aborted) return
       setResponse(result)
       setPage(result.page)
     } catch (requestError) {
+      if (controller.signal.aborted) return
       if (requestError instanceof ApiError && requestError.status === 401) {
-        onSessionExpired()
+        try {
+          await api.me()
+          setError('No pudimos cargar tus proyectos apoyados. Intenta nuevamente.')
+        } catch (sessionError) {
+          if (sessionError instanceof ApiError && sessionError.status === 401) onSessionExpired()
+          else setError(apiErrorMessage(requestError, 'No pudimos cargar tus proyectos apoyados.'))
+        }
         return
       }
       if (requestError instanceof ApiError && requestError.status === 403) {
@@ -131,6 +143,9 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
 
   useEffect(() => {
     void load(0)
+    return () => {
+      activeRequest.current?.abort()
+    }
   }, [])
 
   if (forbidden) {
