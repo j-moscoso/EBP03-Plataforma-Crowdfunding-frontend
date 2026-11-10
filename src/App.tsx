@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Campaign, CampaignSummary, Draft, Screen, User } from './types'
 import { ApiError, api, apiErrorMessage } from './services/api'
 import Navbar from './components/Navbar'
@@ -90,6 +90,7 @@ export default function App() {
   const [privateLoading, setPrivateLoading] = useState(false)
   const [projectsError, setProjectsError] = useState('')
   const [privateError, setPrivateError] = useState('')
+  const sessionCheckInProgress = useRef(false)
 
   const navigate = useCallback((screen: Screen, id?: string | null) => {
     const path = pathFor(screen, id)
@@ -219,7 +220,21 @@ export default function App() {
     navigate('projects')
   }
 
-  function handleSessionExpired() {
+  async function handleSessionExpired() {
+    if (sessionCheckInProgress.current) return
+    sessionCheckInProgress.current = true
+    try {
+      const restored = await api.me()
+      setUser(restored)
+      return
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 401)) {
+        console.error('No se pudo verificar la sesión:', error)
+        return
+      }
+    } finally {
+      sessionCheckInProgress.current = false
+    }
     setUser(null)
     setMine([])
     setDrafts([])

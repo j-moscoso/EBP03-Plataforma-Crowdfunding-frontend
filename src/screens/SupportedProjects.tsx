@@ -130,7 +130,7 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
     } catch (requestError) {
       if (controller.signal.aborted) return
       if (requestError instanceof ApiError && requestError.status === 401) {
-        onSessionExpired()
+        setError('Tu sesión no pudo autorizar esta consulta. Verifica la conexión e inténtalo nuevamente.')
         return
       }
       if (requestError instanceof ApiError && requestError.status === 403) {
