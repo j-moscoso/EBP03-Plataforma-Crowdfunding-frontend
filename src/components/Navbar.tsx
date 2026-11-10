@@ -29,6 +29,21 @@ export default function Navbar({ user, navigate, onLogout, onSessionExpired }: N
     }
   }
 
+  async function openNotification(notification: Notification) {
+    if (!notification.read) {
+      try {
+        await api.markNotificationRead(notification.id)
+        setNotifications(current => current.map(item => item.id === notification.id ? { ...item, read: true } : item))
+      } catch (requestError) {
+        if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
+        else setError(apiErrorMessage(requestError, 'No pudimos marcar la notificación como leída.'))
+        return
+      }
+    }
+    setPanelOpen(false)
+    if (notification.campaignId) navigate('campaign-page', notification.campaignId)
+  }
+
   useEffect(() => {
     setPanelOpen(false)
     setNotifications([])
@@ -117,11 +132,7 @@ export default function Navbar({ user, navigate, onLogout, onSessionExpired }: N
                               <button
                                 type="button"
                                 key={notification.id}
-                                onClick={() => {
-                                  setPanelOpen(false)
-                                  if (notification.campaignId) navigate('campaign-page', notification.campaignId)
-                                }}
-                                disabled={!notification.campaignId}
+                                onClick={() => void openNotification(notification)}
                                 className={`w-full px-5 py-4 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30 disabled:cursor-default ${notification.read ? 'bg-white' : 'bg-primary-light/30'}`}
                               >
                                 <div className="flex items-start gap-3">

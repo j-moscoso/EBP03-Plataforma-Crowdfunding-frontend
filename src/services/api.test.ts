@@ -309,6 +309,17 @@ describe('frontend API integration contracts', () => {
     expect(options?.credentials).toBe('include')
   })
 
+  it('marks a notification as read using its scoped endpoint', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    await api.markNotificationRead('notification-1')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/notifications/notification-1/read'),
+      expect.objectContaining({ method: 'PATCH', credentials: 'include' }),
+    )
+  })
+
   it('normalizes a configured campaign currency without changing its status', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       id: 'campaign-1',

@@ -293,6 +293,7 @@ export default function App() {
         {route.screen === 'creator-profile' && user?.role === 'creator' && (
           <CreatorProfile
             navigate={navigate}
+            onUserNameUpdated={name => setUser(current => current ? { ...current, name } : current)}
             onSessionExpired={handleSessionExpired}
           />
         )}

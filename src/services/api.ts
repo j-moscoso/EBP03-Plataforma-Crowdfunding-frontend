@@ -296,6 +296,8 @@ export const api = {
       })),
     }
   },
+  markNotificationRead: (id: string) =>
+    request<void>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }),
   contributions: (pageNumber = 0, pageSize = 10) =>
     page<TransactionHistoryItem>(`/api/contributions/me?page=${pageNumber}&pageSize=${pageSize}`),
   supportedCampaigns: (pageNumber = 0, pageSize = 10) =>

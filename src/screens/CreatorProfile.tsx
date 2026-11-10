@@ -12,6 +12,7 @@ import { ApiError, api, apiErrorMessage } from '../services/api'
 
 interface Props {
   navigate: (screen: Screen) => void
+  onUserNameUpdated: (name: string) => void
   onSessionExpired: () => void
 }
 
@@ -160,7 +161,7 @@ function ProfileSkeleton() {
   )
 }
 
-export default function CreatorProfile({ navigate, onSessionExpired }: Props) {
+export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionExpired }: Props) {
   const [savedProfile, setSavedProfile] = useState<CreatorProfileModel | null>(null)
   const [draftProfile, setDraftProfile] = useState<DraftProfile>(blankDraft)
   const [loading, setLoading] = useState(true)
@@ -354,6 +355,7 @@ export default function CreatorProfile({ navigate, onSessionExpired }: Props) {
       const profile = await api.saveCreatorProfile(buildPayload())
       setSavedProfile(profile)
       setDraftProfile(profileToDraft(profile))
+      onUserNameUpdated(profile.displayName)
       setErrors(emptyErrors())
       setSuccess(true)
     } catch (error) {
