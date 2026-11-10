@@ -115,20 +115,22 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
     setResponse(null)
     setPage(targetPage)
     try {
-      const result = await api.supportedCampaigns(targetPage, 10, controller.signal)
+      let result: SupportedCampaignsResponse
+      try {
+        result = await api.supportedCampaigns(targetPage, 10, controller.signal)
+      } catch (requestError) {
+        if (!(requestError instanceof ApiError && requestError.status === 401)) throw requestError
+        await api.me()
+        if (controller.signal.aborted) return
+        result = await api.supportedCampaigns(targetPage, 10, controller.signal)
+      }
       if (controller.signal.aborted) return
       setResponse(result)
       setPage(result.page)
     } catch (requestError) {
       if (controller.signal.aborted) return
       if (requestError instanceof ApiError && requestError.status === 401) {
-        try {
-          await api.me()
-          setError('No pudimos cargar tus proyectos apoyados. Intenta nuevamente.')
-        } catch (sessionError) {
-          if (sessionError instanceof ApiError && sessionError.status === 401) onSessionExpired()
-          else setError(apiErrorMessage(requestError, 'No pudimos cargar tus proyectos apoyados.'))
-        }
+        onSessionExpired()
         return
       }
       if (requestError instanceof ApiError && requestError.status === 403) {
