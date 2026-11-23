@@ -1,26 +1,28 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type {
+  PageResponse,
   Screen,
   SupportedCampaignCard as SupportedCampaignCardModel,
-  SupportedCampaignsResponse,
   SupportedCampaignStatusCode,
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
-import { formatMoneyExact } from '../utils/money'
-import CampaignMedia from '../components/CampaignMedia'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
   onSessionExpired: () => void
 }
 
-const statusStyles: Record<SupportedCampaignStatusCode, string> = {
-  ACTIVE: 'bg-primary-light text-primary border-green-200',
-  PUBLISHED: 'bg-primary-light text-primary border-green-200',
-  SUCCESSFUL: 'bg-green-100 text-green-800 border-green-200',
-  FAILED: 'bg-red-50 text-red-700 border-red-200',
-  DRAFT: 'bg-gray-100 text-gray-700 border-gray-200',
-  CANCELLED: 'bg-slate-100 text-slate-700 border-slate-200',
+const statusStyles: Record<SupportedCampaignStatusCode, { label: string; classes: string }> = {
+  ACTIVE: { label: 'ACTIVA', classes: 'bg-primary-light text-primary border-green-200' },
+  PUBLISHED: { label: 'ACTIVA', classes: 'bg-primary-light text-primary border-green-200' },
+  SUCCESSFUL: { label: 'EXITOSA', classes: 'bg-green-100 text-green-800 border-green-200' },
+  FAILED: { label: 'FALLIDA', classes: 'bg-red-50 text-red-700 border-red-200' },
+  DRAFT: { label: 'BORRADOR', classes: 'bg-gray-100 text-gray-700 border-gray-200' },
+  CANCELLED: { label: 'CANCELADA', classes: 'bg-slate-100 text-slate-700 border-slate-200' },
+}
+
+function exactAmount(amount: number, currency: string | null) {
+  return `${currency ?? 'Monto'} ${amount.toLocaleString('es-ES', { maximumFractionDigits: 20 })}`
 }
 
 function exactPercentage(value: number) {
@@ -28,17 +30,40 @@ function exactPercentage(value: number) {
 }
 
 function ProjectImage({ item }: { item: SupportedCampaignCardModel }) {
-  return <CampaignMedia url={item.imageUrl} mediaType={item.mediaType} title={item.title} className="aspect-video" />
+  const [failed, setFailed] = useState(false)
+  if (!item.imageUrl || failed) {
+    return (
+      <div className="aspect-video bg-gray-100 flex flex-col items-center justify-center text-center px-5" role="img" aria-label={`Proyecto ${item.title} sin imagen disponible`}>
+        <svg className="w-9 h-9 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.6-4.6a2 2 0 012.8 0L16 16m-2-2l1.6-1.6a2 2 0 012.8 0L20 14m-14 6h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p className="text-xs text-gray-500">Imagen no disponible</p>
+      </div>
+    )
+  }
+  return (
+    <div className="aspect-video bg-gray-100 overflow-hidden">
+      <img
+        src={item.imageUrl}
+        alt={`Portada de ${item.title}`}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  )
 }
 
 function SupportedCampaignCard({
   item,
   onOpen,
+  onHistory,
 }: {
   item: SupportedCampaignCardModel
   onOpen: () => void
+  onHistory: () => void
 }) {
-  const statusClass = statusStyles[item.statusCode] ?? 'bg-gray-100 text-gray-700 border-gray-200'
+  const status = statusStyles[item.statusCode]
   const visualPercentage = Math.max(0, Math.min(item.totalRaisedPercentage, 100))
   return (
     <article className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
@@ -46,13 +71,13 @@ function SupportedCampaignCard({
       <div className="p-5 flex flex-col flex-1">
         <div className="flex items-start justify-between gap-3">
           <h2 className="font-display font-700 text-lg text-gray-900 line-clamp-2">{item.title}</h2>
-          <span className={`inline-flex text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-full border flex-shrink-0 ${statusClass}`}>{item.status}</span>
+          <span className={`inline-flex text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-full border flex-shrink-0 ${status.classes}`}>{status.label}</span>
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-5">
           <div className="bg-primary-light/50 rounded-xl p-3">
             <p className="text-xs text-gray-500">Aportado por mí</p>
-            <p className="text-sm font-bold text-primary mt-1">{formatMoneyExact(item.amountContributedByMe, item.currency)}</p>
+            <p className="text-sm font-bold text-primary mt-1">{exactAmount(item.amountContributedByMe, item.currency)}</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
             <p className="text-xs text-gray-500">Recaudado</p>
@@ -65,14 +90,20 @@ function SupportedCampaignCard({
             <div className="h-full bg-primary rounded-full progress-bar" style={{ width: `${visualPercentage}%` }} />
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            <strong className="text-gray-700">{formatMoneyExact(item.raisedAmount, item.currency)}</strong> de {formatMoneyExact(item.goalAmount, item.currency)}
+            <strong className="text-gray-700">{exactAmount(item.raisedAmount, item.currency)}</strong> de {exactAmount(item.goalAmount, item.currency)}
           </p>
         </div>
 
         <p className="text-xs text-gray-400 mt-4">Último aporte: {new Date(item.lastContributionAt).toLocaleDateString('es-ES', { dateStyle: 'medium' })}</p>
+        {item.statusCode === 'FAILED' && (
+          <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs text-red-700">
+            La campaña finalizó sin alcanzar su objetivo. Revisa el estado de tus aportes en el historial.
+          </div>
+        )}
         <button type="button" onClick={onOpen} className="w-full mt-5 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/30">
           Ver proyecto
         </button>
+        {item.statusCode === 'FAILED' && <button type="button" onClick={onHistory} className="w-full mt-2 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/30">Ver transacciones</button>}
       </div>
     </article>
   )
@@ -98,39 +129,25 @@ function CardSkeletons() {
 }
 
 export default function SupportedProjects({ navigate, onSessionExpired }: Props) {
-  const [response, setResponse] = useState<SupportedCampaignsResponse | null>(null)
+  const [response, setResponse] = useState<PageResponse<SupportedCampaignCardModel> | null>(null)
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [forbidden, setForbidden] = useState(false)
-  const activeRequest = useRef<AbortController | null>(null)
 
   async function load(targetPage: number) {
-    activeRequest.current?.abort()
-    const controller = new AbortController()
-    activeRequest.current = controller
     setLoading(true)
     setError('')
     setForbidden(false)
     setResponse(null)
     setPage(targetPage)
     try {
-      let result: SupportedCampaignsResponse
-      try {
-        result = await api.supportedCampaigns(targetPage, 10, controller.signal)
-      } catch (requestError) {
-        if (!(requestError instanceof ApiError && requestError.status === 401)) throw requestError
-        await api.me()
-        if (controller.signal.aborted) return
-        result = await api.supportedCampaigns(targetPage, 10, controller.signal)
-      }
-      if (controller.signal.aborted) return
+      const result = await api.supportedCampaigns(targetPage, 10)
       setResponse(result)
       setPage(result.page)
     } catch (requestError) {
-      if (controller.signal.aborted) return
       if (requestError instanceof ApiError && requestError.status === 401) {
-        setError('Tu sesión no pudo autorizar esta consulta. Verifica la conexión e inténtalo nuevamente.')
+        onSessionExpired()
         return
       }
       if (requestError instanceof ApiError && requestError.status === 403) {
@@ -145,9 +162,6 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
 
   useEffect(() => {
     void load(0)
-    return () => {
-      activeRequest.current?.abort()
-    }
   }, [])
 
   if (forbidden) {
@@ -164,8 +178,6 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
   }
 
   const items = response?.content ?? []
-  const omittedCampaigns = response?.omittedCampaigns ?? []
-  const warnings = response?.warnings ?? []
   return (
     <div className="min-h-screen bg-bg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -183,38 +195,20 @@ export default function SupportedProjects({ navigate, onSessionExpired }: Props)
             <p className="text-sm text-gray-500 mt-2">{error}</p>
             <button type="button" onClick={() => void load(page)} className="mt-5 bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary-hover">Reintentar</button>
           </div>
-        ) : (
-          <>
-            {omittedCampaigns.length > 0 && (
-              <section className="mb-6 rounded-2xl border border-yellow-200 bg-yellow-50 p-5 text-yellow-900" role="status" aria-live="polite">
-                <h2 className="font-display font-700">Hay campañas que no se muestran</h2>
-                <p className="text-sm mt-1">{warnings[0]?.message ?? 'Algunas campañas no se muestran porque tienen monedas confirmadas incompatibles.'}</p>
-                <ul className="mt-4 space-y-3">
-                  {omittedCampaigns.map(item => (
-                    <li key={item.campaignId} className="rounded-xl border border-yellow-200 bg-white/70 p-3 text-sm">
-                      <button type="button" onClick={() => navigate('campaign-page', item.campaignId)} className="font-semibold underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-primary/30 rounded">
-                        {item.title}
-                      </button>
-                      <p className="text-xs mt-1">Motivo: monedas confirmadas incompatibles ({item.currencies.join(', ')}).</p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {items.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm py-16 px-6 text-center">
             <div className="w-14 h-14 rounded-full bg-primary-light text-primary flex items-center justify-center mx-auto mb-4" aria-hidden="true">
               <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21s-7-4.4-7-11a4 4 0 017-2.6A4 4 0 0119 10c0 6.6-7 11-7 11z" /></svg>
             </div>
-            <h2 className="font-display font-700 text-gray-900">{response?.emptyMessage || 'Aún no has apoyado ningún proyecto'}</h2>
+            <h2 className="font-display font-700 text-gray-900">Aún no has apoyado ningún proyecto</h2>
             <p className="text-sm text-gray-400 mt-2 mb-5">Descubre campañas activas y comienza a generar impacto.</p>
             <button type="button" onClick={() => navigate('projects')} className="bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-primary-hover">Explorar proyectos</button>
           </div>
-            ) : (
+        ) : (
+          <>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {items.map(item => <SupportedCampaignCard key={item.campaignId} item={item} onOpen={() => navigate('campaign-page', item.campaignId)} />)}
+              {items.map(item => <SupportedCampaignCard key={item.campaignId} item={item} onOpen={() => navigate('campaign-page', item.campaignId)} onHistory={() => navigate('transaction-history')} />)}
             </div>
-            )}
             {response && response.totalPages > 1 && (
               <nav className="mt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-label="Paginación de proyectos apoyados">
                 <p className="text-xs text-gray-500">Página {response.page + 1} de {response.totalPages}</p>

@@ -12,12 +12,12 @@ import { ApiError, api, apiErrorMessage } from '../services/api'
 
 interface Props {
   navigate: (screen: Screen) => void
-  onUserNameUpdated: (name: string) => void
   onSessionExpired: () => void
 }
 
 interface DraftLink {
   localId: string
+  serverId?: string
   type: CreatorProfileLinkType
   label: string
   url: string
@@ -41,7 +41,7 @@ interface ProfileErrors {
   links: Record<string, Record<string, string[]>>
 }
 
-const linkLimit = 20
+const linkLimit = 10
 const allowedLinkTypes: CreatorProfileLinkType[] = ['PORTFOLIO', 'PROFESSIONAL_NETWORK', 'OTHER_PROJECT']
 const emptyErrors = (): ProfileErrors => ({ fields: {}, links: {} })
 
@@ -63,6 +63,7 @@ function blankDraft(): DraftProfile {
 function linkToDraft(link: CreatorProfileLink): DraftLink {
   return {
     localId: `saved-${link.id}`,
+    serverId: link.id,
     type: link.type,
     label: link.label,
     url: link.url,
@@ -103,25 +104,29 @@ function domainPreview(value: string) {
   }
 }
 
-function validateProfile(draft: DraftProfile): ProfileErrors {
+function validateProfile(draft: DraftProfile, savedProfile: CreatorProfileModel | null): ProfileErrors {
   const errors = emptyErrors()
   const add = (field: string, message: string) => {
     errors.fields[field] = [...(errors.fields[field] ?? []), message]
   }
   if (!draft.displayName.trim()) add('displayName', 'El nombre público es obligatorio.')
-  else if (draft.displayName.trim().length < 2 || draft.displayName.trim().length > 120) add('displayName', 'El nombre público debe tener entre 2 y 120 caracteres.')
-  if (draft.bio.length > 2000) add('bio', 'La biografía no puede superar 2000 caracteres.')
-  if (draft.phone.trim() && !/^\+573\d{9}$/.test(draft.phone.trim())) add('phone', 'Ingresa un celular colombiano en formato +573XXXXXXXXX.')
-  if (draft.professionalTitle.length > 120) add('professionalTitle', 'El título profesional no puede superar 120 caracteres.')
+  if (!draft.bio.trim()) add('bio', 'La biografía es obligatoria.')
+  if (draft.bio.length > 600) add('bio', 'La biografía no puede superar 600 caracteres.')
+  if (!draft.phone.trim()) add('phone', 'El teléfono es obligatorio.')
+  if (draft.phone.trim() && !/^[+\d][\d\s()-]{6,19}$/.test(draft.phone.trim())) add('phone', 'Ingresa un teléfono válido.')
+  if (!draft.professionalTitle.trim()) add('professionalTitle', 'El título profesional es obligatorio.')
   if (!draft.accountType) add('accountType', 'Selecciona un tipo de cuenta.')
   if (!draft.bankName.trim()) add('bankName', 'El banco es obligatorio.')
-  else if (draft.bankName.trim().length > 120) add('bankName', 'El banco no puede superar 120 caracteres.')
-  if (!/^\d{5,80}$/.test(draft.accountNumberReplacement)) add('accountNumber', 'Ingresa entre 5 y 80 dígitos, sin letras ni espacios.')
   if (!draft.accountHolder.trim()) add('accountHolder', 'El titular es obligatorio.')
-  else if (draft.accountHolder.trim().length > 160) add('accountHolder', 'El titular no puede superar 160 caracteres.')
-  if (!/^\d{5,15}$/.test(draft.holderDocumentReplacement.trim())) add('holderDocument', 'Ingresa entre 5 y 15 dígitos para el documento.')
 
-  const seenUrls = new Set<string>()
+  const hasStoredAccount = Boolean(savedProfile?.banking.maskedAccountNumber)
+  if (!hasStoredAccount && !draft.accountNumberReplacement) add('accountNumber', 'El número de cuenta es obligatorio.')
+  if (draft.accountNumberReplacement && !/^\d{8,24}$/.test(draft.accountNumberReplacement)) {
+    add('accountNumber', 'Usa entre 8 y 24 dígitos, sin letras ni espacios.')
+  }
+
+  const hasStoredDocument = Boolean(savedProfile?.banking.maskedHolderDocument)
+  if (!hasStoredDocument && !draft.holderDocumentReplacement.trim()) add('holderDocument', 'El documento del titular es obligatorio.')
 
   draft.links.forEach(link => {
     const linkErrors: Record<string, string[]> = {}
@@ -129,13 +134,11 @@ function validateProfile(draft: DraftProfile): ProfileErrors {
       linkErrors[field] = [...(linkErrors[field] ?? []), message]
     }
     if (!allowedLinkTypes.includes(link.type)) addLinkError('type', 'Selecciona un tipo de enlace válido.')
+    if (!link.label.trim()) addLinkError('label', 'La etiqueta es obligatoria.')
     if (!link.url.trim()) addLinkError('url', 'La URL es obligatoria.')
-    else if (link.url.trim().length > 1000 || !validHttpUrl(link.url.trim())) {
+    else if (!validHttpUrl(link.url.trim())) {
       addLinkError('url', 'Usa una URL absoluta con http:// o https://. No se permiten esquemas peligrosos.')
     }
-    const normalizedUrl = link.url.trim().toLowerCase()
-    if (normalizedUrl && seenUrls.has(normalizedUrl)) addLinkError('url', 'No repitas una URL dentro del perfil.')
-    seenUrls.add(normalizedUrl)
     if (Object.keys(linkErrors).length) errors.links[link.localId] = linkErrors
   })
   return errors
@@ -161,7 +164,7 @@ function ProfileSkeleton() {
   )
 }
 
-export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionExpired }: Props) {
+export default function CreatorProfile({ navigate, onSessionExpired }: Props) {
   const [savedProfile, setSavedProfile] = useState<CreatorProfileModel | null>(null)
   const [draftProfile, setDraftProfile] = useState<DraftProfile>(blankDraft)
   const [loading, setLoading] = useState(true)
@@ -171,6 +174,7 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
   const [errors, setErrors] = useState<ProfileErrors>(emptyErrors)
   const [success, setSuccess] = useState(false)
   const [forbidden, setForbidden] = useState(false)
+  const [sessionExpired, setSessionExpired] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   async function loadProfile() {
@@ -212,12 +216,12 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
       draftProfile.professionalTitle.trim(),
       draftProfile.accountType,
       draftProfile.bankName.trim(),
-      draftProfile.accountNumberReplacement,
+      savedProfile?.banking.maskedAccountNumber || draftProfile.accountNumberReplacement,
       draftProfile.accountHolder.trim(),
-      draftProfile.holderDocumentReplacement,
+      savedProfile?.banking.maskedHolderDocument || draftProfile.holderDocumentReplacement,
     ]
     return Math.round((checks.filter(Boolean).length / checks.length) * 100)
-  }, [draftProfile])
+  }, [draftProfile, savedProfile])
 
   function updateField<K extends keyof Omit<DraftProfile, 'links'>>(field: K, value: DraftProfile[K]) {
     setDraftProfile(current => ({ ...current, [field]: value }))
@@ -227,7 +231,7 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
         ? 'holderDocument'
         : field
     setErrors(current => ({ ...current, fields: { ...current.fields, [errorField]: [] } }))
-    setGlobalError('')
+    if (!sessionExpired) setGlobalError('')
     setSuccess(false)
   }
 
@@ -255,7 +259,7 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
       delete nextLinks[localId]
       return { ...current, links: nextLinks }
     })
-    setGlobalError('')
+    if (!sessionExpired) setGlobalError('')
     setSuccess(false)
   }
 
@@ -281,22 +285,28 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
   }
 
   function buildPayload(): CreatorProfilePayload {
-    if (!draftProfile.accountType) throw new Error('Debes seleccionar un tipo de cuenta.')
+    const preserveAccountNumber = Boolean(savedProfile?.banking.maskedAccountNumber) && !draftProfile.accountNumberReplacement
+    const preserveHolderDocument = Boolean(savedProfile?.banking.maskedHolderDocument) && !draftProfile.holderDocumentReplacement
     return {
       displayName: draftProfile.displayName.trim(),
       bio: draftProfile.bio.trim(),
       phone: draftProfile.phone.trim(),
       professionalTitle: draftProfile.professionalTitle.trim(),
-      bankAccountType: draftProfile.accountType,
-      bankName: draftProfile.bankName.trim(),
-      bankAccountNumber: draftProfile.accountNumberReplacement.trim(),
-      bankAccountHolder: draftProfile.accountHolder.trim(),
-      bankAccountDocument: draftProfile.holderDocumentReplacement.trim(),
+      banking: {
+        accountType: draftProfile.accountType as BankAccountType,
+        bankName: draftProfile.bankName.trim(),
+        accountNumber: preserveAccountNumber ? null : draftProfile.accountNumberReplacement,
+        preserveAccountNumber,
+        accountHolder: draftProfile.accountHolder.trim(),
+        holderDocument: preserveHolderDocument ? null : draftProfile.holderDocumentReplacement.trim(),
+        preserveHolderDocument,
+      },
       links: draftProfile.links.map((link, index) => ({
-        linkType: link.type,
+        ...(link.serverId ? { id: link.serverId } : {}),
+        type: link.type,
         label: link.label.trim(),
         url: link.url.trim(),
-        sortOrder: index,
+        order: index,
       })),
     }
   }
@@ -310,26 +320,21 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
       fieldErrors = body.fieldErrors ?? body.errors ?? []
     }
     fieldErrors.forEach(error => {
-      const linkMatch = error.field.match(/^links\[(\d+)]\.(linkType|type|label|url)$/)
+      const linkMatch = error.field.match(/^links\[(\d+)]\.(type|label|url)$/)
       if (linkMatch) {
         const link = draftProfile.links[Number(linkMatch[1])]
         if (link) {
           const row = next.links[link.localId] ?? {}
-          const field = linkMatch[2] === 'linkType' ? 'type' : linkMatch[2]
-          row[field] = [...(row[field] ?? []), error.message]
+          row[linkMatch[2]] = [...(row[linkMatch[2]] ?? []), error.message]
           next.links[link.localId] = row
         }
       } else {
         const aliases: Record<string, string> = {
-          'profile.bankAccountType': 'accountType',
-          'profile.bankName': 'bankName',
-          'profile.bankAccountNumber': 'accountNumber',
-          'profile.bankAccountHolder': 'accountHolder',
-          'profile.bankAccountDocument': 'holderDocument',
-          bankAccountType: 'accountType',
-          bankAccountNumber: 'accountNumber',
-          bankAccountHolder: 'accountHolder',
-          bankAccountDocument: 'holderDocument',
+          'banking.accountType': 'accountType',
+          'banking.bankName': 'bankName',
+          'banking.accountNumber': 'accountNumber',
+          'banking.accountHolder': 'accountHolder',
+          'banking.holderDocument': 'holderDocument',
         }
         const field = aliases[error.field] ?? error.field
         next.fields[field] = [...(next.fields[field] ?? []), error.message]
@@ -342,9 +347,10 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     if (saving) return
-    const validation = validateProfile(draftProfile)
+    const validation = validateProfile(draftProfile, savedProfile)
     setErrors(validation)
     setGlobalError('')
+    setSessionExpired(false)
     setSuccess(false)
     if (hasErrors(validation)) {
       setGlobalError('Revisa los campos marcados antes de guardar.')
@@ -355,14 +361,14 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
       const profile = await api.saveCreatorProfile(buildPayload())
       setSavedProfile(profile)
       setDraftProfile(profileToDraft(profile))
-      onUserNameUpdated(profile.displayName)
       setErrors(emptyErrors())
       setSuccess(true)
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
         setForbidden(true)
       } else if (error instanceof ApiError && error.status === 401) {
-        onSessionExpired()
+        setGlobalError('Tu sesión expiró. El borrador se mantendrá mientras permanezcas en esta pantalla.')
+        setSessionExpired(true)
       } else if (error instanceof ApiError && (error.status === 400 || error.code === 'VALIDATION_ERROR')) {
         const mapped = applyBackendErrors(error.details)
         setGlobalError(mapped ? 'Revisa los campos marcados.' : error.message)
@@ -441,6 +447,11 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
         {globalError && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" role="alert">
             <p className="text-sm text-red-700">{globalError}</p>
+            {sessionExpired && (
+              <button type="button" onClick={onSessionExpired} className="text-sm font-semibold text-error border border-red-200 bg-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-error/30">
+                Ir a iniciar sesión
+              </button>
+            )}
           </div>
         )}
 
@@ -450,17 +461,17 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
             <div className="grid sm:grid-cols-2 gap-5">
               <div>
                 <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1.5">Nombre público *</label>
-                <input id="displayName" value={draftProfile.displayName} onChange={event => updateField('displayName', event.target.value)} maxLength={120} disabled={saving} aria-invalid={Boolean(errors.fields.displayName?.length)} aria-describedby={errors.fields.displayName?.length ? 'displayName-errors' : undefined} className={inputClass('displayName')} />
+                <input id="displayName" value={draftProfile.displayName} onChange={event => updateField('displayName', event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields.displayName?.length)} aria-describedby={errors.fields.displayName?.length ? 'displayName-errors' : undefined} className={inputClass('displayName')} />
                 <FieldErrors field="displayName" />
               </div>
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1.5">Teléfono (opcional)</label>
-                <input id="phone" type="tel" value={draftProfile.phone} onChange={event => updateField('phone', event.target.value)} maxLength={30} disabled={saving} aria-invalid={Boolean(errors.fields.phone?.length)} aria-describedby={errors.fields.phone?.length ? 'phone-errors' : undefined} className={inputClass('phone')} placeholder="+573000000000" />
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1.5">Teléfono *</label>
+                <input id="phone" type="tel" value={draftProfile.phone} onChange={event => updateField('phone', event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields.phone?.length)} aria-describedby={errors.fields.phone?.length ? 'phone-errors' : undefined} className={inputClass('phone')} placeholder="+57 300 000 0000" />
                 <FieldErrors field="phone" />
               </div>
               <div className="sm:col-span-2">
-                <div className="flex justify-between mb-1.5"><label htmlFor="bio" className="block text-sm font-medium text-gray-700">Biografía (opcional)</label><span className="text-xs text-gray-400">{draftProfile.bio.length}/2000</span></div>
-                <textarea id="bio" value={draftProfile.bio} onChange={event => updateField('bio', event.target.value)} disabled={saving} rows={5} maxLength={2000} aria-invalid={Boolean(errors.fields.bio?.length)} aria-describedby={errors.fields.bio?.length ? 'bio-errors' : undefined} className={`${inputClass('bio')} resize-none`} placeholder="Cuenta tu experiencia y la motivación detrás de tus proyectos." />
+                <div className="flex justify-between mb-1.5"><label htmlFor="bio" className="block text-sm font-medium text-gray-700">Biografía *</label><span className="text-xs text-gray-400">{draftProfile.bio.length}/600</span></div>
+                <textarea id="bio" value={draftProfile.bio} onChange={event => updateField('bio', event.target.value)} disabled={saving} rows={5} maxLength={650} aria-invalid={Boolean(errors.fields.bio?.length)} aria-describedby={errors.fields.bio?.length ? 'bio-errors' : undefined} className={`${inputClass('bio')} resize-none`} placeholder="Cuenta tu experiencia y la motivación detrás de tus proyectos." />
                 <FieldErrors field="bio" />
               </div>
             </div>
@@ -468,8 +479,8 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
 
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
             <h2 className="font-display font-700 text-xl text-gray-900 mb-5">Información profesional</h2>
-            <label htmlFor="professionalTitle" className="block text-sm font-medium text-gray-700 mb-1.5">Cargo o título profesional (opcional)</label>
-            <input id="professionalTitle" value={draftProfile.professionalTitle} onChange={event => updateField('professionalTitle', event.target.value)} maxLength={120} disabled={saving} aria-invalid={Boolean(errors.fields.professionalTitle?.length)} aria-describedby={errors.fields.professionalTitle?.length ? 'professionalTitle-errors' : undefined} className={inputClass('professionalTitle')} placeholder="Ej: Diseñadora industrial y fundadora" />
+            <label htmlFor="professionalTitle" className="block text-sm font-medium text-gray-700 mb-1.5">Cargo o título profesional *</label>
+            <input id="professionalTitle" value={draftProfile.professionalTitle} onChange={event => updateField('professionalTitle', event.target.value)} disabled={saving} aria-invalid={Boolean(errors.fields.professionalTitle?.length)} aria-describedby={errors.fields.professionalTitle?.length ? 'professionalTitle-errors' : undefined} className={inputClass('professionalTitle')} placeholder="Ej: Diseñadora industrial y fundadora" />
             <FieldErrors field="professionalTitle" />
           </section>
 
@@ -478,7 +489,7 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
               <div className="w-9 h-9 rounded-xl bg-primary-light text-primary flex items-center justify-center flex-shrink-0" aria-hidden="true">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               </div>
-              <div><h2 className="font-display font-700 text-xl text-gray-900">Datos bancarios</h2><p className="text-xs text-gray-500 mt-1">Los valores guardados se muestran enmascarados. Por seguridad, el backend exige volver a ingresar el número de cuenta y documento cada vez que guardas el perfil.</p></div>
+              <div><h2 className="font-display font-700 text-xl text-gray-900">Datos bancarios</h2><p className="text-xs text-gray-500 mt-1">Los valores existentes se muestran enmascarados. Deja los campos de reemplazo vacíos para conservarlos.</p></div>
             </div>
             <div className="grid sm:grid-cols-2 gap-5">
               <div>
@@ -490,25 +501,25 @@ export default function CreatorProfile({ navigate, onUserNameUpdated, onSessionE
               </div>
               <div>
                 <label htmlFor="bankName" className="block text-sm font-medium text-gray-700 mb-1.5">Banco *</label>
-                <input id="bankName" value={draftProfile.bankName} onChange={event => updateField('bankName', event.target.value)} maxLength={120} disabled={saving} className={inputClass('bankName')} aria-invalid={Boolean(errors.fields.bankName?.length)} />
+                <input id="bankName" value={draftProfile.bankName} onChange={event => updateField('bankName', event.target.value)} disabled={saving} className={inputClass('bankName')} aria-invalid={Boolean(errors.fields.bankName?.length)} />
                 <FieldErrors field="bankName" />
               </div>
               <div>
-                <label htmlFor="accountNumber" className="block text-sm font-medium text-gray-700 mb-1.5">Número de cuenta *</label>
+                <label htmlFor="accountNumber" className="block text-sm font-medium text-gray-700 mb-1.5">{savedProfile?.banking.maskedAccountNumber ? 'Reemplazar número de cuenta' : 'Número de cuenta *'}</label>
                 {savedProfile?.banking.maskedAccountNumber && <p className="text-xs font-semibold text-gray-600 bg-gray-50 rounded-lg px-3 py-2 mb-2">Actual: {savedProfile.banking.maskedAccountNumber}</p>}
-                <input id="accountNumber" inputMode="numeric" autoComplete="off" value={draftProfile.accountNumberReplacement} onChange={event => updateField('accountNumberReplacement', event.target.value)} disabled={saving} className={inputClass('accountNumber')} aria-invalid={Boolean(errors.fields.accountNumber?.length)} aria-describedby={errors.fields.accountNumber?.length ? 'accountNumber-errors' : 'accountNumber-help'} placeholder="Volver a ingresar, solo dígitos" />
+                <input id="accountNumber" inputMode="numeric" autoComplete="off" value={draftProfile.accountNumberReplacement} onChange={event => updateField('accountNumberReplacement', event.target.value)} disabled={saving} className={inputClass('accountNumber')} aria-invalid={Boolean(errors.fields.accountNumber?.length)} aria-describedby={errors.fields.accountNumber?.length ? 'accountNumber-errors' : 'accountNumber-help'} placeholder={savedProfile?.banking.maskedAccountNumber ? 'Déjalo vacío para conservar el actual' : 'Solo dígitos'} />
                 <FieldErrors field="accountNumber" />
-                {!errors.fields.accountNumber?.length && <p id="accountNumber-help" className="text-xs text-gray-400 mt-1.5">Entre 5 y 80 dígitos. Nunca solicitaremos PIN ni contraseña bancaria.</p>}
+                {!errors.fields.accountNumber?.length && <p id="accountNumber-help" className="text-xs text-gray-400 mt-1.5">Entre 8 y 24 dígitos. Nunca solicitaremos PIN ni contraseña bancaria.</p>}
               </div>
               <div>
                 <label htmlFor="accountHolder" className="block text-sm font-medium text-gray-700 mb-1.5">Titular *</label>
-                <input id="accountHolder" value={draftProfile.accountHolder} onChange={event => updateField('accountHolder', event.target.value)} maxLength={160} disabled={saving} className={inputClass('accountHolder')} aria-invalid={Boolean(errors.fields.accountHolder?.length)} />
+                <input id="accountHolder" value={draftProfile.accountHolder} onChange={event => updateField('accountHolder', event.target.value)} disabled={saving} className={inputClass('accountHolder')} aria-invalid={Boolean(errors.fields.accountHolder?.length)} />
                 <FieldErrors field="accountHolder" />
               </div>
               <div className="sm:col-span-2">
-                <label htmlFor="holderDocument" className="block text-sm font-medium text-gray-700 mb-1.5">Documento del titular *</label>
+                <label htmlFor="holderDocument" className="block text-sm font-medium text-gray-700 mb-1.5">{savedProfile?.banking.maskedHolderDocument ? 'Reemplazar documento del titular' : 'Documento del titular *'}</label>
                 {savedProfile?.banking.maskedHolderDocument && <p className="text-xs font-semibold text-gray-600 bg-gray-50 rounded-lg px-3 py-2 mb-2">Actual: {savedProfile.banking.maskedHolderDocument}</p>}
-                <input id="holderDocument" inputMode="numeric" autoComplete="off" value={draftProfile.holderDocumentReplacement} onChange={event => updateField('holderDocumentReplacement', event.target.value)} maxLength={15} disabled={saving} className={inputClass('holderDocument')} aria-invalid={Boolean(errors.fields.holderDocument?.length)} aria-describedby={errors.fields.holderDocument?.length ? 'holderDocument-errors' : undefined} placeholder="Volver a ingresar el documento (5-15 digitos)" />
+                <input id="holderDocument" autoComplete="off" value={draftProfile.holderDocumentReplacement} onChange={event => updateField('holderDocumentReplacement', event.target.value)} disabled={saving} className={inputClass('holderDocument')} aria-invalid={Boolean(errors.fields.holderDocument?.length)} placeholder={savedProfile?.banking.maskedHolderDocument ? 'Déjalo vacío para conservar el actual' : 'Documento de identidad'} />
                 <FieldErrors field="holderDocument" />
               </div>
             </div>

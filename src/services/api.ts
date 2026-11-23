@@ -2,26 +2,30 @@ import type {
   ApiErrorBody,
   AuthResponse,
   Campaign,
-  CampaignSummary,
+  CampaignComment,
   CampaignUpdate,
   CampaignUpdateDto,
   CampaignUpdatePayload,
   CampaignCurrencyStatus,
+  CampaignSummary,
   Contribution,
   ContributionPayload,
+  CreateSubscriptionPayload,
+  CreatorSubscription,
   CreatorProfile,
   CreatorProfileDto,
   CreatorProfilePayload,
   CreatorProfileSaveResponse,
   Draft,
   DraftPayload,
+  FundingModel,
   PageResponse,
   Notification,
   NotificationDto,
   PasswordResetRequestResponse,
-  PasswordResetConfirmationResponse,
   PasswordResetValidationResponse,
   Progress,
+  Reward,
   SupportedCampaignCard,
   SupportedCampaignsResponse,
   TransactionHistoryItem,
@@ -57,34 +61,17 @@ function normalizeUser(user: User): User {
   return { ...user, role: role as UserRole }
 }
 
-function normalizeCampaign(campaign: Campaign): Campaign {
-  const currency = typeof campaign.currency === 'string' ? campaign.currency.trim().toUpperCase() : null
-  const validCurrency = isCurrencyCode(currency) ? currency : null
-  if (currency !== null && validCurrency === null) {
-    console.error('La campaña recibió una moneda inválida.', { campaignId: campaign.id, currency })
+function normalizeCurrency(value: unknown): { currency: string | null; currencyStatus: CampaignCurrencyStatus } {
+  const received = typeof value === 'string' ? value.trim().toUpperCase() : null
+  const currency = isCurrencyCode(received) ? received : null
+  if (received !== null && currency === null) {
+    console.error('La campaña recibió una moneda inválida.', { currency: received })
   }
-  return {
-    ...campaign,
-    currency: validCurrency,
-    currencyStatus: validCurrency && campaign.currencyStatus === 'CONFIGURED' ? 'CONFIGURED' : 'UNAVAILABLE',
-    creator: normalizeUser(campaign.creator),
-  }
+  return { currency, currencyStatus: currency ? 'CONFIGURED' : 'UNAVAILABLE' }
 }
 
-function normalizeCampaignSummary(campaign: CampaignSummary): CampaignSummary {
-  const currency = typeof campaign.currency === 'string' ? campaign.currency.trim().toUpperCase() : null
-  const validCurrency = isCurrencyCode(currency) ? currency : null
-  if (currency !== null && validCurrency === null) {
-    console.error('La campaña recibió una moneda inválida.', { campaignId: campaign.id, currency })
-  }
-  return {
-    ...campaign,
-    currency: validCurrency,
-    currencyStatus: validCurrency && campaign.currencyStatus === 'CONFIGURED' ? 'CONFIGURED' : 'UNAVAILABLE',
-  }
-}
-
-function normalizeCreatorProfile(profile: CreatorProfileDto): CreatorProfile {
+function normalizeCreatorProfile(profile: CreatorProfileDto | CreatorProfile): CreatorProfile {
+  if ('banking' in profile) return profile
   return {
     id: profile.id ?? undefined,
     displayName: profile.displayName ?? '',
@@ -108,14 +95,109 @@ function normalizeCreatorProfile(profile: CreatorProfileDto): CreatorProfile {
   }
 }
 
-function normalizeCampaignUpdate(update: CampaignUpdateDto): CampaignUpdate {
+function normalizeFundingModel(value: unknown, fallback?: FundingModel): FundingModel {
+  if (value === 'FIXED' || value === 'FLEXIBLE') return value
+  // Compatibilidad de lectura durante la migración; toda escritura usa el contrato nuevo.
+  if (value === 'all-or-nothing') return 'FIXED'
+  if (value === 'flexible') return 'FLEXIBLE'
+  if (value == null && fallback) return fallback
+  return value as FundingModel
+}
+
+function normalizeRewards(item: Pick<Campaign, 'tiers' | 'rewards'> | Pick<Draft, 'tiers' | 'rewards'>): Reward[] {
+  const canonical = Array.isArray(item.rewards) ? item.rewards : []
+  const source = canonical.length > 0
+    ? canonical
+    : (item.tiers ?? []).map(tier => ({
+        id: tier.id,
+        title: tier.nombre,
+        description: tier.descripcion,
+        minimumAmount: tier.montoMinimo,
+        estimatedDeliveryDate: null,
+        quantity: tier.cupos ?? null,
+        claimedQuantity: tier.cuposReclamados ?? 0,
+        available: true,
+        remainingQuantity: null,
+      }))
+
+  return source.map(reward => {
+    const quantity = reward.quantity == null ? null : Number(reward.quantity)
+    const claimedQuantity = Math.max(Number(reward.claimedQuantity ?? 0), 0)
+    const remainingQuantity = quantity == null ? null : Math.max(quantity - claimedQuantity, 0)
+    const soldOut = quantity !== null && claimedQuantity >= quantity
+    return {
+      id: String(reward.id),
+      title: String(reward.title ?? ''),
+      description: String(reward.description ?? ''),
+      minimumAmount: Number(reward.minimumAmount),
+      estimatedDeliveryDate: reward.estimatedDeliveryDate ?? null,
+      quantity,
+      claimedQuantity,
+      available: !soldOut && reward.available !== false,
+      remainingQuantity,
+    }
+  })
+}
+
+function normalizeCampaign(campaign: Campaign): Campaign {
+  const normalized: Campaign = {
+    ...campaign,
+    ...normalizeCurrency(campaign.currency),
+    mediaType: campaign.mediaType === 'VIDEO' ? 'VIDEO' : 'IMAGE',
+    fundingModel: normalizeFundingModel(campaign.fundingModel),
+    rewards: normalizeRewards(campaign),
+    creator: normalizeUser(campaign.creator),
+  }
+  const deadline = new Date(normalized.deadline).getTime()
+  const missedAllOrNothingGoal =
+    normalized.fundingModel === 'FIXED' &&
+    normalized.status !== 'FAILED' &&
+    normalized.progress.raisedAmount < normalized.goalAmount &&
+    Number.isFinite(deadline) &&
+    deadline <= Date.now()
+  return missedAllOrNothingGoal ? {
+    ...normalized,
+    status: 'FAILED',
+    progress: { ...normalized.progress, status: 'FAILED', secondsRemaining: 0 },
+  } : normalized
+}
+
+function normalizeDraft(draft: Draft): Draft {
   return {
-    id: update.id,
-    campaignId: update.campaignId,
-    title: update.title,
-    body: update.body,
-    publishedAt: update.publishedAt,
-    media: update.media.map(media => ({
+    ...draft,
+    ...normalizeCurrency(draft.currency),
+    mediaType: draft.mediaType === 'VIDEO' ? 'VIDEO' : 'IMAGE',
+    fundingModel: normalizeFundingModel(draft.fundingModel, 'FIXED'),
+    rewards: normalizeRewards(draft),
+  }
+}
+
+function normalizeCampaignSummary(campaign: CampaignSummary): CampaignSummary {
+  return {
+    ...campaign,
+    fundingModel: normalizeFundingModel(campaign.fundingModel),
+    ...normalizeCurrency(campaign.currency),
+  }
+}
+
+function normalizeCampaignUpdate(update: CampaignUpdateDto | CampaignUpdate): CampaignUpdate {
+  if ('media' in update && Array.isArray(update.media) && update.media.every(media => 'type' in media)) {
+    const normalized = update as CampaignUpdate
+    return {
+      ...normalized,
+      createdAt: normalized.createdAt ?? normalized.publishedAt,
+      publishedAt: normalized.publishedAt,
+    }
+  }
+  const dto = update as CampaignUpdateDto
+  return {
+    id: dto.id,
+    campaignId: dto.campaignId,
+    title: dto.title,
+    body: dto.body,
+    createdAt: dto.publishedAt,
+    publishedAt: dto.publishedAt,
+    media: dto.media.map(media => ({
       id: media.id,
       type: media.mediaType,
       url: media.url,
@@ -124,12 +206,34 @@ function normalizeCampaignUpdate(update: CampaignUpdateDto): CampaignUpdate {
   }
 }
 
+function normalizeTransaction(item: TransactionHistoryItem): TransactionHistoryItem {
+  return {
+    ...item,
+    receiptStatus: item.receiptStatus ?? null,
+    receiptStatusLabel: item.receiptStatusLabel ?? null,
+    paymentStatus: item.paymentStatus ?? null,
+    refundedAt: item.refundedAt ?? null,
+  }
+}
+
+function normalizeNotification(notification: NotificationDto): Notification {
+  return {
+    id: notification.id,
+    type: notification.type,
+    title: notification.title,
+    body: notification.body,
+    campaignId: notification.campaignId,
+    campaignUpdateId: notification.campaignUpdateId,
+    createdAt: notification.createdAt,
+    read: notification.readAt !== null,
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      cache: 'no-store',
       credentials: 'include',
       headers: {
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -197,22 +301,23 @@ export const api = {
   },
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   async creatorProfile() {
-    const response = await request<CreatorProfileDto>('/api/creators/me/profile')
-    return normalizeCreatorProfile(response)
+    const response = await request<CreatorProfileDto | CreatorProfile | null>('/api/creators/me/profile')
+    return response ? normalizeCreatorProfile(response) : null
   },
   async saveCreatorProfile(body: CreatorProfilePayload) {
-    const response = await request<CreatorProfileSaveResponse>('/api/creators/me/profile', {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    })
-    return normalizeCreatorProfile(response.profile)
+    const response = await request<CreatorProfileSaveResponse | CreatorProfileDto | CreatorProfile>(
+      '/api/creators/me/profile',
+      { method: 'PUT', body: JSON.stringify(body) },
+    )
+    if ('profile' in response) return normalizeCreatorProfile(response.profile)
+    return normalizeCreatorProfile(response)
   },
   async updateMe(body: UpdateMePayload) {
-    const response = await request<UpdateMeResponse>('/api/auth/me', {
+    const response = await request<UpdateMeResponse | User>('/api/auth/me', {
       method: 'PATCH',
       body: JSON.stringify(body),
     })
-    return normalizeUser(response.user)
+    return normalizeUser('user' in response ? response.user : response)
   },
   requestPasswordReset: (email: string) =>
     request<PasswordResetRequestResponse>('/api/auth/password-reset/request', {
@@ -225,19 +330,26 @@ export const api = {
       body: JSON.stringify({ token }),
     }),
   confirmPasswordReset: (token: string, newPassword: string) =>
-    request<PasswordResetConfirmationResponse>('/api/auth/password-reset/confirm', {
+    request<void>('/api/auth/password-reset/confirm', {
       method: 'POST',
       body: JSON.stringify({ token, newPassword }),
     }),
-  drafts: () => page<Draft>('/api/drafts?page=0&pageSize=10'),
-  draft: (id: string) => request<Draft>(`/api/drafts/${encodeURIComponent(id)}`),
-  createDraft: (body: DraftPayload) =>
-    request<Draft>('/api/drafts', { method: 'POST', body: JSON.stringify(body) }),
-  updateDraft: (id: string, body: DraftPayload) =>
-    request<Draft>(`/api/drafts/${encodeURIComponent(id)}`, {
+  async drafts() {
+    const result = await page<Draft>('/api/drafts?page=0&pageSize=10')
+    return { ...result, content: result.content.map(normalizeDraft) }
+  },
+  async draft(id: string) {
+    return normalizeDraft(await request<Draft>(`/api/drafts/${encodeURIComponent(id)}`))
+  },
+  async createDraft(body: DraftPayload) {
+    return normalizeDraft(await request<Draft>('/api/drafts', { method: 'POST', body: JSON.stringify(body) }))
+  },
+  async updateDraft(id: string, body: DraftPayload) {
+    return normalizeDraft(await request<Draft>(`/api/drafts/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify(body),
-    }),
+    }))
+  },
   deleteDraft: (id: string) =>
     request<void>(`/api/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   async publishDraft(id: string) {
@@ -256,66 +368,101 @@ export const api = {
   async campaign(id: string) {
     return normalizeCampaign(await request<Campaign>(`/api/campaigns/${encodeURIComponent(id)}`))
   },
+  async updateCampaignFundingModel(id: string, fundingModel: FundingModel) {
+    return normalizeCampaign(
+      await request<Campaign>(`/api/campaigns/${encodeURIComponent(id)}/funding-model`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fundingModel }),
+      }),
+    )
+  },
   campaignProgress: (id: string) =>
     request<Progress>(`/api/campaigns/${encodeURIComponent(id)}/progress`),
   async campaignUpdates(id: string, pageNumber = 0, pageSize = 10) {
-    const response = await page<CampaignUpdateDto>(
+    const response = await page<CampaignUpdateDto | CampaignUpdate>(
       `/api/campaigns/${encodeURIComponent(id)}/updates?page=${pageNumber}&pageSize=${pageSize}`,
     )
     return { ...response, content: response.content.map(normalizeCampaignUpdate) }
   },
   async createCampaignUpdate(id: string, body: CampaignUpdatePayload) {
-    const response = await request<CampaignUpdateDto>(`/api/campaigns/${encodeURIComponent(id)}/updates`, {
-      method: 'POST',
-      body: JSON.stringify({
-        title: body.title,
-        body: body.body,
-        media: body.media.map((media, sortOrder) => ({
-          mediaType: media.type,
-          url: media.url,
-          sortOrder,
-        })),
-      }),
-    })
+    const response = await request<CampaignUpdateDto | CampaignUpdate>(
+      `/api/campaigns/${encodeURIComponent(id)}/updates`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body.media.length ? {
+          title: body.title,
+          body: body.body,
+          media: body.media.map((media, sortOrder) => ({
+            mediaType: media.type,
+            url: media.url,
+            sortOrder,
+          })),
+        } : body),
+      },
+    )
     return normalizeCampaignUpdate(response)
   },
+  campaignDiscussion: (id: string, pageNumber = 0, pageSize = 20) =>
+    page<CampaignComment>(`/api/campaigns/${encodeURIComponent(id)}/discussion?page=${pageNumber}&pageSize=${pageSize}`),
+  createDiscussionComment: (id: string, body: string) =>
+    request<CampaignComment>(`/api/campaigns/${encodeURIComponent(id)}/discussion/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  replyToDiscussionComment: (campaignId: string, commentId: string, body: string) =>
+    request<CampaignComment>(`/api/campaigns/${encodeURIComponent(campaignId)}/discussion/comments/${encodeURIComponent(commentId)}/replies`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  convertDiscussionCommentToFaq: (campaignId: string, commentId: string) =>
+    request<CampaignComment | void>(`/api/campaigns/${encodeURIComponent(campaignId)}/discussion/comments/${encodeURIComponent(commentId)}/faq`, {
+      method: 'PATCH',
+    }),
+  campaignFaq: (id: string, pageNumber = 0, pageSize = 20) =>
+    page<CampaignComment>(`/api/campaigns/${encodeURIComponent(id)}/faq?page=${pageNumber}&pageSize=${pageSize}`),
   async notifications() {
-    const response = await page<NotificationDto>(
-      '/api/notifications/me?page=0&pageSize=20&unreadOnly=false',
-    )
-    return {
-      ...response,
-      content: response.content.map((notification): Notification => ({
-        id: notification.id,
-        type: notification.type,
-        title: notification.title,
-        body: notification.body,
-        campaignId: notification.campaignId,
-        campaignUpdateId: notification.campaignUpdateId,
-        createdAt: notification.createdAt,
-        read: notification.readAt !== null,
-      })),
-    }
+    const result = await page<NotificationDto>('/api/notifications/me?page=0&pageSize=20&unreadOnly=false')
+    return { ...result, content: result.content.map(normalizeNotification) }
   },
   markNotificationRead: (id: string) =>
-    request<void>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }),
-  contributions: (pageNumber = 0, pageSize = 10) =>
-    page<TransactionHistoryItem>(`/api/contributions/me?page=${pageNumber}&pageSize=${pageSize}`),
-  supportedCampaigns: (pageNumber = 0, pageSize = 10, signal?: AbortSignal) =>
-    request<SupportedCampaignsResponse>(`/api/sponsors/me/supported-campaigns?page=${pageNumber}&pageSize=${pageSize}`, { signal }).then(response => ({
+    request<NotificationDto | void>(`/api/notifications/${encodeURIComponent(id)}/read`, {
+      method: 'PATCH',
+    }),
+  async contributions(pageNumber = 0, pageSize = 10) {
+    const result = await page<TransactionHistoryItem>(`/api/contributions/me?page=${pageNumber}&pageSize=${pageSize}`)
+    return { ...result, content: result.content.map(normalizeTransaction) }
+  },
+  async supportedCampaigns(pageNumber = 0, pageSize = 10, signal?: AbortSignal) {
+    const response = await request<SupportedCampaignsResponse>(
+      `/api/sponsors/me/supported-campaigns?page=${pageNumber}&pageSize=${pageSize}`,
+      { signal },
+    )
+    return {
       ...response,
       omittedCampaigns: Array.isArray(response.omittedCampaigns) ? response.omittedCampaigns : [],
       warnings: Array.isArray(response.warnings) ? response.warnings : [],
       content: response.content.map(item => {
-        const receivedCurrency = typeof item.currency === 'string' ? item.currency.trim().toUpperCase() : null
-        const currency = isCurrencyCode(receivedCurrency) ? receivedCurrency : null
-        const currencyStatus: CampaignCurrencyStatus = currency ? 'CONFIGURED' : 'UNAVAILABLE'
-        if (receivedCurrency !== null && currency === null) {
-          console.error('El tablero recibió una moneda inválida.', { campaignId: item.campaignId, currency: receivedCurrency })
+        const received = typeof item.currency === 'string' ? item.currency.trim().toUpperCase() : null
+        const currency = isCurrencyCode(received) ? received : null
+        return {
+          ...item,
+          currency,
+          currencyStatus: currency ? 'CONFIGURED' as const : 'UNAVAILABLE' as const,
         }
-        return { ...item, currency, currencyStatus }
       }),
-    })),
+    }
+  },
+  subscriptions: (pageNumber = 0, pageSize = 20) =>
+    page<CreatorSubscription>(`/api/subscriptions/me?page=${pageNumber}&pageSize=${pageSize}`),
+  createSubscription: (body: CreateSubscriptionPayload) =>
+    request<CreatorSubscription>('/api/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  cancelSubscription: (id: string) =>
+    request<CreatorSubscription | void>(`/api/subscriptions/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+    }),
   contribute: (
     campaignId: string,
     body: ContributionPayload,

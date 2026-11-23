@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Campaign, CampaignSummary, Draft, Screen, User } from './types'
+import type {
+  Campaign,
+  CreatorSubscription,
+  Draft,
+  Notification,
+  Screen,
+  SimulatedContribution,
+  CampaignSummary,
+  User,
+} from './types'
 import { ApiError, api, apiErrorMessage } from './services/api'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -15,10 +24,12 @@ import UserSettings from './screens/UserSettings'
 import CreatorProfile from './screens/CreatorProfile'
 import TransactionHistory from './screens/TransactionHistory'
 import SupportedProjects from './screens/SupportedProjects'
+import Subscriptions from './screens/Subscriptions'
 
 interface Route {
   screen: Screen
   campaignId: string | null
+  rewardId: string | null
   draftId: string | null
   resetToken: string | null
 }
@@ -26,12 +37,19 @@ interface Route {
 function routeFromPath(pathname: string, search: string): Route {
   const campaign = pathname.match(/^\/campaigns\/([^/]+)\/?$/)
   const payment = pathname.match(/^\/payment-flow\/([^/]+)\/?$/)
-  if (campaign) return { screen: 'campaign-page', campaignId: decodeURIComponent(campaign[1]), draftId: null, resetToken: null }
-  if (payment) return { screen: 'payment-flow', campaignId: decodeURIComponent(payment[1]), draftId: null, resetToken: null }
+  if (campaign) return { screen: 'campaign-page', campaignId: decodeURIComponent(campaign[1]), rewardId: null, draftId: null, resetToken: null }
+  if (payment) return {
+    screen: 'payment-flow',
+    campaignId: decodeURIComponent(payment[1]),
+    rewardId: new URLSearchParams(search).get('reward'),
+    draftId: null,
+    resetToken: null,
+  }
   if (pathname.replace(/\/+$/, '') === '/password-reset/confirm') {
     return {
       screen: 'password-reset-confirm',
       campaignId: null,
+      rewardId: null,
       draftId: null,
       resetToken: new URLSearchParams(search).get('token'),
     }
@@ -46,6 +64,7 @@ function routeFromPath(pathname: string, search: string): Route {
     '/projects': 'projects',
     '/creator-dashboard': 'creator-dashboard',
     '/sponsor-dashboard': 'sponsor-dashboard',
+    '/subscriptions': 'subscriptions',
     '/transaction-history': 'transaction-history',
     '/supported-projects': 'supported-projects',
     '/create-campaign': 'create-campaign',
@@ -53,6 +72,7 @@ function routeFromPath(pathname: string, search: string): Route {
   return {
     screen: map[pathname.replace(/\/+$/, '') || '/'] ?? 'register',
     campaignId: null,
+    rewardId: null,
     draftId: new URLSearchParams(search).get('draft'),
     resetToken: null,
   }
@@ -70,6 +90,7 @@ function pathFor(screen: Screen, id?: string | null) {
     'creator-profile': '/creator-profile',
     'creator-dashboard': '/creator-dashboard',
     'sponsor-dashboard': '/sponsor-dashboard',
+    subscriptions: '/subscriptions',
     'transaction-history': '/transaction-history',
     'supported-projects': '/supported-projects',
     'create-campaign': id ? `/create-campaign?draft=${encodeURIComponent(id)}` : '/create-campaign',
@@ -90,11 +111,53 @@ export default function App() {
   const [privateLoading, setPrivateLoading] = useState(false)
   const [projectsError, setProjectsError] = useState('')
   const [privateError, setPrivateError] = useState('')
-  const sessionCheckInProgress = useRef(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [notificationsError, setNotificationsError] = useState('')
+  const [subscriptions, setSubscriptions] = useState<CreatorSubscription[]>([])
+  const [simulatedContributions, setSimulatedContributions] = useState<SimulatedContribution[]>([])
+  const notificationSessionRef = useRef<string | null>(null)
 
   const navigate = useCallback((screen: Screen, id?: string | null) => {
     const path = pathFor(screen, id)
     history.pushState({}, '', path)
+    setRoute(routeFromPath(location.pathname, location.search))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  const handleSessionExpired = useCallback(() => {
+    notificationSessionRef.current = null
+    setUser(null)
+    setMine([])
+    setDrafts([])
+    setNotifications([])
+    setNotificationsError('')
+    navigate('login')
+  }, [navigate])
+
+  const refreshNotifications = useCallback(async (background = false) => {
+    const sessionUserId = notificationSessionRef.current
+    if (!sessionUserId) return
+    if (!background) setNotificationsLoading(true)
+    try {
+      const response = await api.notifications()
+      if (notificationSessionRef.current !== sessionUserId) return
+      setNotifications(response.content)
+      setNotificationsError('')
+    } catch (error) {
+      if (notificationSessionRef.current !== sessionUserId) return
+      if (error instanceof ApiError && error.status === 401) {
+        handleSessionExpired()
+        return
+      }
+      setNotificationsError(apiErrorMessage(error, 'No pudimos cargar tus notificaciones.'))
+    } finally {
+      if (!background && notificationSessionRef.current === sessionUserId) setNotificationsLoading(false)
+    }
+  }, [handleSessionExpired])
+
+  const selectReward = useCallback((campaignId: string, rewardId: string) => {
+    history.pushState({}, '', `/payment-flow/${encodeURIComponent(campaignId)}?reward=${encodeURIComponent(rewardId)}`)
     setRoute(routeFromPath(location.pathname, location.search))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
@@ -132,6 +195,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('impulsafund:route-ready'))
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [route.screen, route.campaignId, route.rewardId, route.draftId, route.resetToken])
+
+  useEffect(() => {
     void (async () => {
       let restored: User | null = null
       try {
@@ -146,7 +216,7 @@ export default function App() {
       }
       const current = routeFromPath(location.pathname, location.search)
       if (current.screen === 'register' || current.screen === 'home') {
-        const target = restored ? '/projects' : '/login'
+        const target = restored ? '/projects' : '/register'
         history.replaceState({}, '', target)
         setRoute(routeFromPath(location.pathname, location.search))
       }
@@ -167,18 +237,36 @@ export default function App() {
   }, [user, refreshCreatorData])
 
   useEffect(() => {
+    if (!user) {
+      notificationSessionRef.current = null
+      setNotifications([])
+      setNotificationsError('')
+      setNotificationsLoading(false)
+      return
+    }
+
+    notificationSessionRef.current = user.id
+    void refreshNotifications()
+    const configuredInterval = Number(import.meta.env.VITE_NOTIFICATION_POLL_MS ?? 30000)
+    if (!Number.isFinite(configuredInterval) || configuredInterval <= 0) return
+    const interval = window.setInterval(() => void refreshNotifications(true), configuredInterval)
+    return () => window.clearInterval(interval)
+  }, [user?.id, refreshNotifications])
+
+  useEffect(() => {
     if (sessionLoading) return
-    if (route.screen === 'supported-projects' && !user) {
+    if ((route.screen === 'supported-projects' || route.screen === 'subscriptions') && !user) {
       navigate('login')
       return
     }
-    const privateScreens: Screen[] = ['creator-dashboard', 'sponsor-dashboard', 'transaction-history', 'supported-projects', 'create-campaign', 'settings', 'creator-profile']
+    const privateScreens: Screen[] = ['creator-dashboard', 'sponsor-dashboard', 'subscriptions', 'transaction-history', 'supported-projects', 'create-campaign', 'settings', 'creator-profile']
     if (privateScreens.includes(route.screen) && !user) {
-      navigate('login')
+      navigate('register')
       return
     }
     if (route.screen === 'creator-dashboard' && user?.role !== 'creator') navigate('projects')
     if (route.screen === 'sponsor-dashboard' && user?.role !== 'sponsor') navigate('projects')
+    if (route.screen === 'subscriptions' && user?.role !== 'sponsor') navigate('projects')
     if (route.screen === 'transaction-history' && user?.role !== 'sponsor') navigate('projects')
     if (route.screen === 'supported-projects' && user?.role !== 'sponsor') navigate('projects')
     if (route.screen === 'create-campaign' && user?.role !== 'creator') navigate('projects')
@@ -220,37 +308,19 @@ export default function App() {
     navigate('projects')
   }
 
-  async function handleSessionExpired() {
-    if (sessionCheckInProgress.current) return
-    sessionCheckInProgress.current = true
-    try {
-      const restored = await api.me()
-      setUser(restored)
-      return
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 401)) {
-        console.error('No se pudo verificar la sesión:', error)
-        return
-      }
-    } finally {
-      sessionCheckInProgress.current = false
-    }
-    setUser(null)
-    setMine([])
-    setDrafts([])
-    navigate('login')
-  }
-
   async function handleLogout() {
     try {
       await api.logout()
     } catch (error) {
       console.error('No se pudo cerrar la sesión en el servidor:', error)
     } finally {
+      notificationSessionRef.current = null
       setUser(null)
       setMine([])
       setDrafts([])
-      navigate('login')
+      setNotifications([])
+      setNotificationsError('')
+      navigate('register')
     }
   }
 
@@ -269,6 +339,62 @@ export default function App() {
     }
   }
 
+  function handleSimulatedContribution(contribution: SimulatedContribution) {
+    setSimulatedContributions(current => [contribution, ...current])
+    if (contribution.frequency === 'monthly') {
+      const nextCharge = new Date(contribution.createdAt)
+      nextCharge.setMonth(nextCharge.getMonth() + 1)
+      setSubscriptions(current => [{
+        id: `sim-sub-${crypto.randomUUID()}`,
+        creatorId: contribution.creatorId,
+        creatorName: [...campaigns, ...mine].find(campaign => campaign.id === contribution.campaignId)?.creator?.name,
+        amount: contribution.amount,
+        currency: contribution.currency,
+        status: 'ACTIVE',
+        nextChargeAt: nextCharge.toISOString(),
+        lastChargeAt: contribution.createdAt,
+        cancelledAt: null,
+        createdAt: contribution.createdAt,
+      }, ...current])
+    }
+    const updateCampaign = (campaign: CampaignSummary) => campaign.id !== contribution.campaignId ? campaign : {
+      ...campaign,
+      raisedAmount: (campaign.raisedAmount ?? campaign.progress?.raisedAmount ?? 0) + contribution.amount,
+      progress: campaign.progress ? {
+        ...campaign.progress,
+        raisedAmount: campaign.progress.raisedAmount + contribution.amount,
+        remainingAmount: Math.max(campaign.goalAmount - campaign.progress.raisedAmount - contribution.amount, 0),
+        percentage: Math.min(Math.round(((campaign.progress.raisedAmount + contribution.amount) / campaign.goalAmount) * 100), 100),
+        sponsorsCount: campaign.progress.sponsorsCount + 1,
+      } : undefined,
+    }
+    setCampaigns(current => current.map(updateCampaign))
+    setMine(current => current.map(updateCampaign))
+  }
+
+  function handleLocalSubscriptionCancelled(id: string, cancelledAt: string) {
+    setSubscriptions(current => current.map(subscription => subscription.id === id ? {
+      ...subscription,
+      status: 'CANCELLED',
+      nextChargeAt: null,
+      cancelledAt,
+    } : subscription))
+  }
+
+  function handleFailedCampaign(campaignId: string) {
+    const refundableCount = simulatedContributions.filter(item => item.campaignId === campaignId && item.receiptStatus === 'HELD').length
+    const refundedAt = new Date().toISOString()
+    setSimulatedContributions(current => current.map(item => item.campaignId === campaignId && item.receiptStatus === 'HELD' ? { ...item, receiptStatus: 'REFUNDED', refundedAt } : item))
+    const markFailed = (campaign: CampaignSummary) => campaign.id !== campaignId ? campaign : {
+      ...campaign,
+      status: 'FAILED' as const,
+      refundedContributionsCount: refundableCount,
+      progress: campaign.progress ? { ...campaign.progress, status: 'FAILED' as const, secondsRemaining: 0 } : undefined,
+    }
+    setCampaigns(current => current.map(markFailed))
+    setMine(current => current.map(markFailed))
+  }
+
   if (sessionLoading) {
     return <div className="min-h-screen bg-bg flex items-center justify-center text-sm font-semibold text-gray-600">Cargando sesión...</div>
   }
@@ -276,7 +402,30 @@ export default function App() {
   const showFooter = route.screen !== 'payment-flow'
   return (
     <div className="min-h-screen flex flex-col bg-bg">
-      <Navbar user={user} navigate={navigate} onLogout={handleLogout} onSessionExpired={handleSessionExpired} />
+      <Navbar
+        user={user}
+        navigate={navigate}
+        onLogout={handleLogout}
+        notifications={notifications}
+        notificationsLoading={notificationsLoading}
+        notificationsError={notificationsError}
+        onRefreshNotifications={() => void refreshNotifications()}
+        onReadNotification={async id => {
+          try {
+            await api.markNotificationRead(id)
+            setNotifications(current => current.map(notification => notification.id === id ? { ...notification, read: true } : notification))
+            setNotificationsError('')
+            return true
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 401) {
+              handleSessionExpired()
+              return false
+            }
+            setNotificationsError(apiErrorMessage(error, 'No pudimos marcar la notificación como leída.'))
+            return false
+          }
+        }}
+      />
       <main className="flex-1">
         {(route.screen === 'home' || route.screen === 'register') && (
           <Register navigate={navigate} onLogin={handleAuth} />
@@ -308,7 +457,6 @@ export default function App() {
         {route.screen === 'creator-profile' && user?.role === 'creator' && (
           <CreatorProfile
             navigate={navigate}
-            onUserNameUpdated={name => setUser(current => current ? { ...current, name } : current)}
             onSessionExpired={handleSessionExpired}
           />
         )}
@@ -319,8 +467,9 @@ export default function App() {
             loading={projectsLoading}
             error={projectsError}
             navigate={navigate}
+            onSelectReward={selectReward}
             user={user}
-            onSessionExpired={handleSessionExpired}
+            onCampaignFailed={handleFailedCampaign}
           />
         )}
         {route.screen === 'campaign-page' && (
@@ -330,8 +479,9 @@ export default function App() {
             loading={projectsLoading}
             error={projectsError}
             navigate={navigate}
+            onSelectReward={selectReward}
             user={user}
-            onSessionExpired={handleSessionExpired}
+            onCampaignFailed={handleFailedCampaign}
           />
         )}
         {route.screen === 'creator-dashboard' && user?.role === 'creator' && (
@@ -346,10 +496,30 @@ export default function App() {
           />
         )}
         {route.screen === 'sponsor-dashboard' && user?.role === 'sponsor' && (
-          <SponsorDashboard user={user} navigate={navigate} onSessionExpired={handleSessionExpired} />
+          <SponsorDashboard
+            user={user}
+            navigate={navigate}
+            subscriptions={subscriptions}
+            simulatedContributions={simulatedContributions.filter(item => item.sponsorId === user.id)}
+          />
+        )}
+        {route.screen === 'subscriptions' && user?.role === 'sponsor' && (
+          <Subscriptions
+            user={user}
+            creators={[...campaigns, ...mine].flatMap(campaign =>
+              campaign.creator ? [{ id: campaign.creator.id, name: campaign.creator.name }] : [],
+            )}
+            localSubscriptions={subscriptions}
+            navigate={navigate}
+            onLocalSubscriptionCancelled={handleLocalSubscriptionCancelled}
+            onSessionExpired={handleSessionExpired}
+          />
         )}
         {route.screen === 'transaction-history' && user?.role === 'sponsor' && (
-          <TransactionHistory navigate={navigate} onSessionExpired={handleSessionExpired} />
+          <TransactionHistory
+            navigate={navigate}
+            simulatedContributions={simulatedContributions.filter(item => item.sponsorId === user.id)}
+          />
         )}
         {route.screen === 'supported-projects' && user?.role === 'sponsor' && (
           <SupportedProjects
@@ -371,10 +541,17 @@ export default function App() {
             navigate={navigate}
             onSaveDraft={upsertDraft}
             onPublish={handlePublished}
+            user={user}
           />
         )}
         {route.screen === 'payment-flow' && (
-          <PaymentFlow campaignId={route.campaignId} user={user} navigate={navigate} onSessionExpired={handleSessionExpired} />
+          <PaymentFlow
+            campaignId={route.campaignId}
+            initialRewardId={route.rewardId}
+            user={user}
+            navigate={navigate}
+            onContribution={handleSimulatedContribution}
+          />
         )}
       </main>
       {showFooter && <Footer />}

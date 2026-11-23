@@ -1,54 +1,52 @@
 import { useEffect, useState } from 'react'
 import type { Notification, Screen, User } from '../types'
-import { ApiError, api, apiErrorMessage } from '../services/api'
+import ThemeToggle from './ThemeToggle'
 
 interface NavbarProps {
   user: User | null
   navigate: (screen: Screen, id?: string | null) => void
   onLogout: () => void
-  onSessionExpired: () => void
+  notifications: Notification[]
+  notificationsLoading: boolean
+  notificationsError: string
+  onRefreshNotifications: () => void
+  onReadNotification: (id: string) => Promise<boolean>
 }
 
-export default function Navbar({ user, navigate, onLogout, onSessionExpired }: NavbarProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([])
+const notificationTypeLabels: Record<string, string> = {
+  NEW_CONTRIBUTION: 'Nuevo aporte',
+  CAMPAIGN_UPDATE_PUBLISHED: 'Actualización',
+}
+
+function NotificationIcon({ type }: { type: string }) {
+  if (type === 'NEW_CONTRIBUTION') {
+    return (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m3-9.5c0-1.38-1.34-2.5-3-2.5S9 7.12 9 8.5s1.34 2.5 3 2.5 3 1.12 3 2.5-1.34 2.5-3 2.5-3-1.12-3-2.5" />
+      </svg>
+    )
+  }
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+export default function Navbar({
+  user,
+  navigate,
+  onLogout,
+  notifications,
+  notificationsLoading,
+  notificationsError,
+  onRefreshNotifications,
+  onReadNotification,
+}: NavbarProps) {
   const [panelOpen, setPanelOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  async function loadNotifications() {
-    if (!user) return
-    setLoading(true)
-    setError('')
-    try {
-      setNotifications((await api.notifications()).content)
-    } catch (requestError) {
-      if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
-      else setError(apiErrorMessage(requestError, 'No pudimos cargar tus notificaciones.'))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function openNotification(notification: Notification) {
-    if (!notification.read) {
-      try {
-        await api.markNotificationRead(notification.id)
-        setNotifications(current => current.map(item => item.id === notification.id ? { ...item, read: true } : item))
-      } catch (requestError) {
-        if (requestError instanceof ApiError && requestError.status === 401) onSessionExpired()
-        else setError(apiErrorMessage(requestError, 'No pudimos marcar la notificación como leída.'))
-        return
-      }
-    }
-    setPanelOpen(false)
-    if (notification.campaignId) navigate('campaign-page', notification.campaignId)
-  }
 
   useEffect(() => {
     setPanelOpen(false)
-    setNotifications([])
-    setError('')
-    if (user) void loadNotifications()
   }, [user?.id])
 
   useEffect(() => {
@@ -74,6 +72,7 @@ export default function Navbar({ user, navigate, onLogout, onSessionExpired }: N
             Explorar proyectos
           </button>
           <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
             {user ? (
               <>
                 <button
@@ -83,6 +82,11 @@ export default function Navbar({ user, navigate, onLogout, onSessionExpired }: N
                 >
                   Mi panel
                 </button>
+                {user.role === 'sponsor' && (
+                  <button type="button" onClick={() => navigate('subscriptions')} className="hidden lg:block text-sm font-medium text-primary border border-primary rounded-lg px-4 py-2 hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    Mis suscripciones
+                  </button>
+                )}
                 {user.role === 'creator' && (
                   <button type="button" onClick={() => navigate('create-campaign')} className="hidden lg:block text-sm font-medium text-primary border border-primary rounded-lg px-4 py-2 hover:bg-primary-light">
                     Nueva campaña
@@ -95,7 +99,7 @@ export default function Navbar({ user, navigate, onLogout, onSessionExpired }: N
                     onClick={() => {
                       const opening = !panelOpen
                       setPanelOpen(opening)
-                      if (opening) void loadNotifications()
+                      if (opening) onRefreshNotifications()
                     }}
                     className="relative w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary/30"
                     aria-label={`Notificaciones${unreadCount ? `, ${unreadCount} sin leer` : ''}`}
@@ -108,39 +112,64 @@ export default function Navbar({ user, navigate, onLogout, onSessionExpired }: N
                   </button>
 
                   {panelOpen && (
-                    <div className="fixed sm:absolute top-16 sm:top-11 left-3 right-3 sm:left-auto sm:right-0 sm:w-96 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden z-50" role="dialog" aria-label="Centro de notificaciones">
+                    <div className="fixed sm:absolute top-16 sm:top-11 left-3 right-3 sm:left-auto sm:right-0 sm:w-96 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden z-50 motion-safe:animate-[fade-in_150ms_ease-out]" role="dialog" aria-modal="false" aria-labelledby="notifications-title">
                       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                         <div>
-                          <h2 className="font-display font-700 text-gray-900">Notificaciones</h2>
+                          <h2 id="notifications-title" className="font-display font-700 text-gray-900">Notificaciones</h2>
                           <p className="text-xs text-gray-400 mt-0.5">{unreadCount} sin leer</p>
                         </div>
-                        <button type="button" onClick={() => setPanelOpen(false)} className="text-gray-400 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 rounded-md px-2 py-1" aria-label="Cerrar notificaciones">×</button>
+                        <button type="button" onClick={() => setPanelOpen(false)} className="text-gray-400 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 rounded-md px-2 py-1 text-xl leading-none" aria-label="Cerrar notificaciones">×</button>
                       </div>
+                      <span className="sr-only" aria-live="polite">{unreadCount} notificaciones sin leer</span>
                       <div className="max-h-[70vh] overflow-y-auto">
-                        {loading ? (
-                          <div className="py-12 text-center text-sm text-gray-500" role="status">Cargando notificaciones...</div>
-                        ) : error ? (
-                          <div className="p-5 text-center">
-                            <p className="text-sm text-error">{error}</p>
-                            <button type="button" onClick={() => void loadNotifications()} className="mt-3 text-sm font-semibold text-primary hover:underline">Reintentar</button>
+                        {notificationsError && (
+                          <div className="m-3 rounded-xl bg-error/10 px-4 py-3 text-sm text-error" role="alert">
+                            <p>{notificationsError}</p>
+                            <button type="button" onClick={onRefreshNotifications} className="mt-2 font-semibold underline underline-offset-2 focus:outline-none focus:ring-2 focus:ring-error/30 rounded">Reintentar</button>
                           </div>
-                        ) : notifications.length === 0 ? (
-                          <p className="py-12 px-5 text-center text-sm text-gray-500">No tienes notificaciones.</p>
+                        )}
+                        {notificationsLoading && notifications.length === 0 ? (
+                          <div className="p-5 space-y-4" aria-label="Cargando notificaciones" aria-busy="true">
+                            {[0, 1, 2].map(item => (
+                              <div key={item} className="flex gap-3 animate-pulse motion-reduce:animate-none">
+                                <span className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
+                                <span className="flex-1 space-y-2">
+                                  <span className="block h-3 w-2/3 rounded bg-gray-100" />
+                                  <span className="block h-3 w-full rounded bg-gray-100" />
+                                  <span className="block h-3 w-1/3 rounded bg-gray-100" />
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : notifications.length === 0 && !notificationsError ? (
+                          <p className="py-12 px-5 text-center text-sm text-gray-500">No tienes notificaciones</p>
                         ) : (
                           <div className="divide-y divide-gray-100">
                             {notifications.map(notification => (
                               <button
                                 type="button"
                                 key={notification.id}
-                                onClick={() => void openNotification(notification)}
-                                className={`w-full px-5 py-4 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30 disabled:cursor-default ${notification.read ? 'bg-white' : 'bg-primary-light/30'}`}
+                                onClick={async () => {
+                                  const readSucceeded = await onReadNotification(notification.id)
+                                  if (readSucceeded && notification.campaignId) {
+                                    setPanelOpen(false)
+                                    navigate('campaign-page', notification.campaignId)
+                                  }
+                                }}
+                                className={`w-full px-5 py-4 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary transition-colors motion-reduce:transition-none ${notification.read ? 'bg-white' : 'bg-primary-light/40'}`}
                               >
                                 <div className="flex items-start gap-3">
-                                  <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${notification.read ? 'bg-gray-200' : 'bg-primary'}`} aria-hidden="true" />
-                                  <span className="min-w-0">
+                                  <span className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${notification.read ? 'bg-gray-100 text-gray-500' : 'bg-primary/15 text-primary'}`}>
+                                    <NotificationIcon type={notification.type} />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="flex items-center gap-2 text-[11px] font-semibold text-primary">
+                                      {!notification.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0" aria-hidden="true" />}
+                                      {notificationTypeLabels[notification.type] ?? 'Notificación'}
+                                      <span className="ml-auto text-gray-400 font-medium">{notification.read ? 'Leída' : 'Sin leer'}</span>
+                                    </span>
                                     <span className="block text-sm font-semibold text-gray-900">{notification.title}</span>
-                                    <span className="block text-xs text-gray-500 mt-1 line-clamp-2">{notification.body}</span>
-                                    <span className="block text-xs text-primary font-medium mt-2">{notification.type === 'CAMPAIGN_UPDATE_PUBLISHED' ? 'Actualización del proyecto' : 'Notificación'}</span>
+                                    <span className="block text-xs text-gray-500 mt-1">{notification.body}</span>
                                     <span className="block text-[11px] text-gray-400 mt-1">{new Date(notification.createdAt).toLocaleString('es-ES')}</span>
                                   </span>
                                 </div>

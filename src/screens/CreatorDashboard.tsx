@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { CampaignSummary, CampaignStatus, Draft, Screen, User } from '../types'
+import type { Campaign,
+CampaignSummary, CampaignStatus, Draft, Screen, User } from '../types'
 import { api, apiErrorMessage } from '../services/api'
-import { formatMoney } from '../utils/money'
 
 interface Props {
   user: User
@@ -18,23 +18,29 @@ const statusLabels: Record<CampaignStatus, string> = {
   PUBLISHED: 'Publicada',
   ACTIVE: 'Activa',
   SUCCESSFUL: 'Exitosa',
-  FAILED: 'No alcanzada',
+  FAILED: 'Fallida',
   CANCELLED: 'Cancelada',
+}
+
+function fundingModelLabel(value: unknown) {
+  if (value === 'FIXED') return 'Modelo fijo'
+  if (value === 'FLEXIBLE') return 'Modelo flexible'
+  return 'Modelo no disponible'
+}
+
+function summaryRaised(campaign: CampaignSummary) {
+  return campaign.progress?.raisedAmount ?? campaign.raisedAmount ?? 0
+}
+
+function summaryPercentage(campaign: CampaignSummary) {
+  return campaign.progress?.percentage ?? (campaign.goalAmount > 0 ? Math.round(summaryRaised(campaign) * 100 / campaign.goalAmount) : 0)
 }
 
 export default function CreatorDashboard({ user, campaigns, drafts, loading, error, navigate, onDraftDeleted }: Props) {
   const [showDrafts, setShowDrafts] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
-  const totalsByCurrency = campaigns.reduce((totals, campaign) => {
-    if (campaign.currencyStatus === 'CONFIGURED' && campaign.currency) {
-      totals.set(campaign.currency, (totals.get(campaign.currency) ?? 0) + campaign.progress.raisedAmount)
-    }
-    return totals
-  }, new Map<string, number>())
-  const totalRaised = [...totalsByCurrency.entries()]
-    .map(([currency, amount]) => formatMoney(amount, currency))
-    .join(' · ') || 'Moneda no disponible'
+  const totalRaised = campaigns.reduce((total, campaign) => total + summaryRaised(campaign), 0)
 
   async function deleteDraft(id: string) {
     setDeletingId(id)
@@ -79,7 +85,7 @@ export default function CreatorDashboard({ user, campaigns, drafts, loading, err
 
         <div className="grid sm:grid-cols-3 gap-4 mb-8">
           {[
-            ['Total recaudado', totalRaised],
+            ['Total recaudado', `$${totalRaised.toLocaleString()}`],
             ['Campañas publicadas', String(campaigns.length)],
             ['Borradores', String(drafts.length)],
           ].map(([label, value]) => (
@@ -106,15 +112,23 @@ export default function CreatorDashboard({ user, campaigns, drafts, loading, err
                 <article key={campaign.id} className="px-6 py-5">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex gap-2 mb-2">
+                      <div className="flex flex-wrap gap-2 mb-2">
                         <span className="text-xs font-semibold bg-primary-light text-primary px-2.5 py-1 rounded-full">{statusLabels[campaign.status]}</span>
+                        <span className="text-xs font-semibold bg-gray-50 border border-gray-200 text-gray-600 px-2.5 py-1 rounded-full">{fundingModelLabel(campaign.fundingModel)}</span>
                         <span className="text-xs text-gray-400 py-1">{campaign.category}</span>
                       </div>
                       <button onClick={() => navigate('campaign-page', campaign.id)} className="font-semibold text-gray-900 hover:text-primary text-left">{campaign.title}</button>
                       <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full progress-bar" style={{ width: `${Math.min(campaign.progress.percentage, 100)}%` }} />
+                        <div className="h-full bg-primary rounded-full progress-bar" style={{ width: `${Math.min(summaryPercentage(campaign), 100)}%` }} />
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">{formatMoney(campaign.progress.raisedAmount, campaign.currency)} de {formatMoney(campaign.goalAmount, campaign.currency)} · {campaign.progress.percentage}%</p>
+                      <p className="text-xs text-gray-500 mt-1">${summaryRaised(campaign).toLocaleString()} de ${campaign.goalAmount.toLocaleString()} · {summaryPercentage(campaign)}%</p>
+                      {campaign.status === 'FAILED' && (
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                          <div className="rounded-lg bg-gray-50 px-3 py-2"><span className="block text-gray-400">Meta</span><strong className="text-gray-700">${campaign.goalAmount.toLocaleString()}</strong></div>
+                          <div className="rounded-lg bg-gray-50 px-3 py-2"><span className="block text-gray-400">Recaudado</span><strong className="text-gray-700">${summaryRaised(campaign).toLocaleString()}</strong></div>
+                          <div className="rounded-lg bg-red-50 px-3 py-2"><span className="block text-red-400">Reembolsados</span><strong className="text-red-700">{campaign.refundedContributionsCount ?? 0} aportes</strong></div>
+                        </div>
+                      )}
                     </div>
                     <button onClick={() => navigate('campaign-page', campaign.id)} className="text-xs font-semibold text-primary border border-primary rounded-lg px-4 py-2">Ver detalle</button>
                   </div>

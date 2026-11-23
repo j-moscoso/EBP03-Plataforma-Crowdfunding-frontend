@@ -9,6 +9,7 @@ export type Screen =
   | 'creator-profile'
   | 'creator-dashboard'
   | 'sponsor-dashboard'
+  | 'subscriptions'
   | 'transaction-history'
   | 'supported-projects'
   | 'create-campaign'
@@ -18,11 +19,14 @@ export type Screen =
 export type UserRole = 'creator' | 'sponsor'
 export type VerificationStatus = 'pending' | 'verified'
 export type CampaignStatus = 'DRAFT' | 'PUBLISHED' | 'ACTIVE' | 'SUCCESSFUL' | 'FAILED' | 'CANCELLED'
+export type FundingModel = 'FIXED' | 'FLEXIBLE'
 export type CampaignMediaType = 'IMAGE' | 'VIDEO'
-export type ContributionStatus = 'PENDING' | 'CONFIRMED' | 'FAILED' | 'REFUNDED'
-export type PaymentStatus = 'CREATED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'
+export type ContributionStatus = 'PENDING' | 'HELD' | 'CONFIRMED' | 'FAILED' | 'REFUNDED'
 export type CampaignUpdateMediaType = 'IMAGE' | 'VIDEO'
 export type ReceiptStatus = 'HELD' | 'SUCCESSFUL' | 'REFUNDED' | 'FAILED'
+export type PaymentStatus = 'PENDING' | 'AUTHORIZED' | 'CONFIRMED' | 'FAILED' | 'REFUNDED' | 'SIMULATED'
+export type ContributionFrequency = 'once' | 'monthly'
+export type SubscriptionStatus = 'ACTIVE' | 'CANCELLED' | 'FAILED'
 export type SupportedCampaignStatusCode = CampaignStatus
 export type CampaignCurrencyStatus = 'CONFIGURED' | 'UNAVAILABLE'
 
@@ -34,13 +38,25 @@ export interface User {
   verificationStatus: VerificationStatus
 }
 
+export interface Tier {
+  id: string
+  nombre: string
+  montoMinimo: number
+  descripcion: string
+  cupos?: number | null
+  cuposReclamados?: number
+}
+
 export interface Reward {
   id: string
   title: string
   description: string
   minimumAmount: number
-  quantity?: number | null
-  claimedQuantity?: number
+  estimatedDeliveryDate: string | null
+  quantity: number | null
+  claimedQuantity: number
+  available: boolean
+  remainingQuantity: number | null
 }
 
 export interface CampaignUpdate {
@@ -48,15 +64,9 @@ export interface CampaignUpdate {
   campaignId: string
   title: string
   body: string
-  publishedAt: string
+  createdAt?: string
+  publishedAt?: string
   media: CampaignUpdateMedia[]
-}
-
-export interface CampaignUpdateMedia {
-  id?: string
-  type: CampaignUpdateMediaType
-  url: string
-  sortOrder: number
 }
 
 export interface CampaignUpdateDto {
@@ -75,6 +85,13 @@ export interface CampaignUpdateDto {
   notificationsCreated?: number
 }
 
+export interface CampaignUpdateMedia {
+  id?: string
+  type: CampaignUpdateMediaType
+  url: string
+  sortOrder?: number
+}
+
 export interface CampaignUpdatePayload {
   title: string
   body: string
@@ -90,6 +107,7 @@ export interface Notification {
   title: string
   body: string
   campaignId: string | null
+  contributionId?: string | null
   campaignUpdateId: string | null
   createdAt: string
   read: boolean
@@ -98,11 +116,53 @@ export interface Notification {
 export interface NotificationDto {
   id: string
   type: string
-  campaignId: string | null
-  campaignUpdateId: string | null
   title: string
   body: string
+  campaignId: string | null
+  contributionId?: string | null
+  campaignUpdateId: string | null
   readAt: string | null
+  createdAt: string
+}
+
+export interface CreatorSubscription {
+  id: string
+  creatorId: string
+  creatorName?: string
+  amount: number
+  currency: string
+  status: SubscriptionStatus
+  nextChargeAt: string | null
+  lastChargeAt: string | null
+  cancelledAt: string | null
+  createdAt: string
+}
+
+export interface CampaignComment {
+  id: string
+  campaignId: string
+  authorId: string
+  authorName: string
+  parentCommentId: string | null
+  body: string
+  isOfficialAnswer: boolean
+  isFaq: boolean
+  createdAt: string
+}
+
+export interface SimulatedContribution {
+  id: string
+  campaignId: string
+  campaignTitle: string
+  creatorId: string
+  sponsorId: string
+  sponsorName: string
+  amount: number
+  currency: string
+  rewardId: string | null
+  frequency: ContributionFrequency
+  receiptStatus: Extract<ReceiptStatus, 'HELD' | 'REFUNDED'>
+  refundedAt?: string | null
   createdAt: string
 }
 
@@ -116,22 +176,6 @@ export interface Progress {
   status: CampaignStatus
 }
 
-export interface CampaignSummary {
-  id: string
-  title: string
-  description: string
-  goalAmount: number
-  deadline: string
-  category: string
-  mediaUrl: string | null
-  mediaType: CampaignMediaType
-  currency: string | null
-  currencyStatus: CampaignCurrencyStatus
-  status: CampaignStatus
-  publishedAt: string | null
-  progress: Pick<Progress, 'raisedAmount' | 'remainingAmount' | 'percentage' | 'sponsorsCount' | 'secondsRemaining'>
-}
-
 export interface Campaign {
   id: string
   title: string
@@ -140,16 +184,42 @@ export interface Campaign {
   deadline: string
   category: string
   mediaUrl: string | null
-  mediaType: CampaignMediaType
+  mediaType?: CampaignMediaType
   currency: string | null
   currencyStatus: CampaignCurrencyStatus
   status: CampaignStatus
   publishedAt: string | null
+  fundingModel: FundingModel
   creator: User
   rewards: Reward[]
+  /** @deprecated Solo para compatibilidad de lectura con respuestas anteriores. */
+  tiers?: Tier[]
   updates: CampaignUpdate[]
   progress: Progress
+  refundedContributionsCount?: number
   currentUserIsCreator?: boolean
+  fundingModelEditable?: boolean
+  fundingModelLockedReason?: string | null
+}
+
+export interface CampaignSummary {
+  id: string
+  title: string
+  description?: string
+  category: string
+  mediaUrl: string | null
+  mediaType?: CampaignMediaType
+  currency?: string | null
+  currencyStatus?: CampaignCurrencyStatus
+  status: CampaignStatus
+  goalAmount: number
+  raisedAmount?: number
+  deadline?: string
+  progress?: Pick<Progress, 'raisedAmount' | 'remainingAmount' | 'percentage' | 'sponsorsCount' | 'secondsRemaining'>
+  publishedAt?: string | null
+  fundingModel: FundingModel
+  refundedContributionsCount?: number
+  creator?: User
 }
 
 export interface Draft {
@@ -160,11 +230,16 @@ export interface Draft {
   durationDays: number | null
   category: string
   mediaUrl: string | null
-  mediaType: CampaignMediaType
-  currency: string | null
+  mediaType?: CampaignMediaType
+  currency?: string | null
+  fundingModel: FundingModel
   rewards: Reward[]
+  /** @deprecated Solo para compatibilidad de lectura con respuestas anteriores. */
+  tiers?: Tier[]
   completionPercentage: number
   savedAt: string
+  fundingModelEditable?: boolean
+  fundingModelLockedReason?: string | null
 }
 
 export interface PaymentSummary {
@@ -180,6 +255,8 @@ export interface Contribution {
   campaignId: string
   sponsorId: string
   rewardId: string | null
+  /** @deprecated Compatibilidad temporal con aportes anteriores. */
+  tierId?: string | null
   amount: number
   currency: string
   status: ContributionStatus
@@ -199,16 +276,20 @@ export interface TransactionHistoryItem {
   receiptStatusLabel: string | null
   contributionStatus: ContributionStatus
   paymentStatus: PaymentStatus | null
+  refundedAt?: string | null
+  campaignDeadline?: string | null
+  subscriptionId?: string | null
+  contributionType?: 'ONE_TIME' | 'SUBSCRIPTION'
 }
 
 export interface SupportedCampaignCard {
   campaignId: string
   imageUrl: string | null
-  mediaType: CampaignMediaType
+  mediaType?: CampaignMediaType
   title: string
   amountContributedByMe: number
   currency: string | null
-  currencyStatus: CampaignCurrencyStatus
+  currencyStatus?: CampaignCurrencyStatus
   raisedAmount: number
   goalAmount: number
   totalRaisedPercentage: number
@@ -287,16 +368,28 @@ export interface CreatorProfilePayload {
   bio: string
   phone: string
   professionalTitle: string
-  bankAccountType: BankAccountType
-  bankName: string
-  bankAccountNumber: string
-  bankAccountHolder: string
-  bankAccountDocument: string
+  bankAccountType?: BankAccountType
+  bankName?: string
+  bankAccountNumber?: string
+  bankAccountHolder?: string
+  bankAccountDocument?: string
+  banking?: {
+    accountType: BankAccountType
+    bankName: string
+    accountNumber: string | null
+    preserveAccountNumber: boolean
+    accountHolder: string
+    holderDocument: string | null
+    preserveHolderDocument: boolean
+  }
   links: Array<{
-    linkType: CreatorProfileLinkType
+    id?: string
+    type?: CreatorProfileLinkType
+    linkType?: CreatorProfileLinkType
     label: string
     url: string
-    sortOrder: number
+    order?: number
+    sortOrder?: number
   }>
 }
 
@@ -333,11 +426,6 @@ export interface UpdateMeResponse {
   user: User
 }
 
-export interface PasswordResetConfirmationResponse {
-  message: string
-  loginRequired: boolean
-}
-
 export interface ApiErrorBody {
   status?: number
   code?: string
@@ -366,12 +454,15 @@ export interface DraftPayload {
   durationDays: number | null
   category: string
   mediaUrl: string | null
-  mediaType: CampaignMediaType
-  currency: string | null
+  mediaType?: CampaignMediaType
+  currency?: string | null
+  fundingModel: FundingModel
   rewards: Array<{
     title: string
     description: string
     minimumAmount: number
+    estimatedDeliveryDate: string
+    quantity: number | null
   }>
 }
 
@@ -379,5 +470,12 @@ export interface ContributionPayload {
   amount: number
   currency: string
   rewardId?: string
+  paymentMethodId: string
+}
+
+export interface CreateSubscriptionPayload {
+  creatorId: string
+  amount: number
+  currency: string
   paymentMethodId: string
 }

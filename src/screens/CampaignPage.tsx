@@ -6,13 +6,11 @@ import type {
   CampaignUpdateMedia,
   CampaignUpdateMediaType,
   FieldValidationError,
-  PageResponse,
   Screen,
   User,
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
-import { formatMoney, isCurrencyCode } from '../utils/money'
-import CampaignMedia, { isPublicHttpsUrl } from '../components/CampaignMedia'
+import CampaignTabs from '../components/CampaignTabs'
 
 interface Props {
   campaignId: string | null
@@ -20,8 +18,10 @@ interface Props {
   loading: boolean
   error: string
   navigate: (screen: Screen, id?: string | null) => void
+  onSelectReward: (campaignId: string, rewardId: string) => void
   user: User | null
-  onSessionExpired: () => void
+  campaignOverride?: Campaign
+  onCampaignFailed: (campaignId: string) => void
 }
 
 function Countdown({ initialSeconds }: { initialSeconds: number }) {
@@ -48,6 +48,42 @@ function Countdown({ initialSeconds }: { initialSeconds: number }) {
   )
 }
 
+const fundingModelCopy = {
+  FIXED: {
+    label: 'Modelo fijo',
+    shortLabel: 'Fijo',
+    note: 'Los aportes quedan retenidos hasta cerrar la campaña. Si no se alcanza la meta, se reembolsan.',
+  },
+  FLEXIBLE: {
+    label: 'Modelo flexible',
+    shortLabel: 'Flexible',
+    note: 'Los fondos recaudados pueden consolidarse al finalizar aunque no se alcance la meta completa.',
+  },
+} as const
+
+function fundingModelInfo(value: unknown) {
+  if (value === 'FIXED' || value === 'FLEXIBLE') return fundingModelCopy[value]
+  return null
+}
+
+function FundingStatusBadge({ campaign }: { campaign: Campaign }) {
+  if (campaign.fundingModel === 'FIXED') {
+    if (campaign.status === 'SUCCESSFUL' || campaign.progress.raisedAmount >= campaign.goalAmount) {
+      return <span className="inline-flex rounded-full bg-green-50 border border-green-200 px-2.5 py-1 text-xs font-semibold text-green-700">Meta alcanzada</span>
+    }
+    if (campaign.status === 'FAILED') {
+      return <span className="inline-flex rounded-full bg-red-50 border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700">Meta no alcanzada</span>
+    }
+    return <span className="inline-flex rounded-full bg-yellow-50 border border-yellow-200 px-2.5 py-1 text-xs font-semibold text-yellow-700">Fondos retenidos</span>
+  }
+  if (campaign.fundingModel === 'FLEXIBLE') {
+    return campaign.progress.raisedAmount > 0
+      ? <span className="inline-flex rounded-full bg-green-50 border border-green-200 px-2.5 py-1 text-xs font-semibold text-green-700">Aportes consolidados</span>
+      : <span className="inline-flex rounded-full bg-gray-50 border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600">Sin aportes aún</span>
+  }
+  return <span className="inline-flex rounded-full bg-gray-50 border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600">Modelo no disponible</span>
+}
+
 function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaigns' | 'loading' | 'error' | 'navigate'>) {
   return (
     <div className="min-h-screen bg-bg">
@@ -59,22 +95,30 @@ function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaign
           <div className="bg-white border border-gray-100 rounded-2xl py-16 text-center text-gray-500">No hay campañas activas disponibles.</div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {campaigns.map(campaign => (
+            {campaigns.map(campaign => {
+              const model = fundingModelInfo(campaign.fundingModel)
+              return (
               <article key={campaign.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                <CampaignMedia url={campaign.mediaUrl} mediaType={campaign.mediaType} title={campaign.title} className="h-48" />
+                <div className="h-48 bg-gray-100 overflow-hidden">
+                  {campaign.mediaUrl ? <img src={campaign.mediaUrl} alt={campaign.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200" />}
+                </div>
                 <div className="p-5">
-                  <span className="text-xs font-semibold text-primary bg-primary-light px-2.5 py-1 rounded-full">{campaign.category}</span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs font-semibold text-primary bg-primary-light px-2.5 py-1 rounded-full">{campaign.category}</span>
+                    <span className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full">{model ? `Modelo ${model.shortLabel.toLowerCase()}` : 'Modelo no disponible'}</span>
+                  </div>
                   <h2 className="font-display font-700 text-gray-900 mt-3 line-clamp-2">{campaign.title}</h2>
                   <p className="text-sm text-gray-500 mt-1 line-clamp-2">{campaign.description}</p>
-                  <div className="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div className="h-full bg-primary" style={{ width: `${Math.min(campaign.progress.percentage, 100)}%` }} /></div>
+                  <div className="h-2 rounded-full bg-gray-100 overflow-hidden mt-4"><div className="h-full bg-primary" style={{ width: `${Math.min(campaign.progress?.percentage ?? (campaign.goalAmount > 0 ? Math.round((campaign.raisedAmount ?? 0) * 100 / campaign.goalAmount) : 0), 100)}%` }} /></div>
                   <div className="flex justify-between text-xs text-gray-500 mt-2 mb-4">
-                    <span><strong className="text-gray-900">{formatMoney(campaign.progress.raisedAmount, campaign.currency)}</strong> de {formatMoney(campaign.goalAmount, campaign.currency)}</span>
-                    <span>{campaign.progress.percentage}%</span>
+                    <span><strong className="text-gray-900">${(campaign.progress?.raisedAmount ?? campaign.raisedAmount ?? 0).toLocaleString()}</strong> de ${campaign.goalAmount.toLocaleString()}</span>
+                    <span>{campaign.progress?.percentage ?? 0}%</span>
                   </div>
                   <button onClick={() => navigate('campaign-page', campaign.id)} className="w-full bg-primary text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-primary-hover">Ver campaña</button>
                 </div>
               </article>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -82,14 +126,55 @@ function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaign
   )
 }
 
+function isSafeMediaUrl(value: string) {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+function mediaDomain(value: string) {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.hostname : ''
+  } catch {
+    return ''
+  }
+}
+
 function SafeMedia({ media, title }: { media: CampaignUpdateMedia; title: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!isSafeMediaUrl(media.url) || failed) {
+    return (
+      <div className="min-h-36 bg-gray-100 rounded-xl flex items-center justify-center px-4 text-center">
+        <p className="text-xs text-gray-500">No pudimos mostrar este medio.</p>
+      </div>
+    )
+  }
+  if (media.type === 'IMAGE') {
+    return (
+      <img
+        src={media.url}
+        alt={`Imagen de la actualización: ${title}`}
+        className="w-full max-h-96 object-cover rounded-xl bg-gray-100"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    )
+  }
   return (
-    <CampaignMedia
-      url={media.url}
-      mediaType={media.type}
-      title={title}
-      className="w-full aspect-video rounded-xl"
-    />
+    <div className="min-h-36 bg-gray-900 rounded-xl flex flex-col items-center justify-center px-5 py-8 text-center">
+      <svg className="w-9 h-9 text-white mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.75 9l-5.5-3.25v6.5L14.75 9zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <p className="text-sm font-semibold text-white">Video externo</p>
+      <p className="text-xs text-gray-300 mt-1">{mediaDomain(media.url)}</p>
+      <a href={media.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex text-xs font-semibold bg-white text-gray-900 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-white/40">
+        Abrir video de forma segura
+      </a>
+    </div>
   )
 }
 
@@ -107,8 +192,8 @@ interface UpdateErrors {
 
 const emptyUpdateErrors = (): UpdateErrors => ({ title: [], body: [], media: {} })
 
-function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign; user: User | null; onSessionExpired: () => void }) {
-  const [updatesResponse, setUpdatesResponse] = useState<PageResponse<CampaignUpdate> | null>(null)
+function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | null }) {
+  const [updates, setUpdates] = useState<CampaignUpdate[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [title, setTitle] = useState('')
@@ -123,12 +208,14 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
   const isCreator = user?.role === 'creator' &&
     (user.id === campaign.creator.id || campaign.currentUserIsCreator === true)
 
-  async function loadUpdates(pageNumber = 0) {
+  async function loadUpdates() {
     setLoading(true)
     setLoadError('')
     try {
-      const response = await api.campaignUpdates(campaign.id, pageNumber, 10)
-      setUpdatesResponse(response)
+      const response = await api.campaignUpdates(campaign.id)
+      setUpdates([...response.content].sort((a, b) =>
+        new Date(b.createdAt ?? b.publishedAt ?? 0).getTime() - new Date(a.createdAt ?? a.publishedAt ?? 0).getTime(),
+      ))
     } catch (requestError) {
       setLoadError(apiErrorMessage(requestError, 'No pudimos cargar las actualizaciones.'))
     } finally {
@@ -142,12 +229,11 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
     setBody('')
     setMedia([])
     setSuccess(false)
-    setUpdatesResponse(null)
-    void loadUpdates(0)
+    void loadUpdates()
   }, [campaign.id])
 
   function addMedia() {
-    if (media.length >= 10) return
+    if (media.length >= 5) return
     setMedia(current => [...current, { localId: crypto.randomUUID(), type: 'IMAGE', url: '' }])
     setSuccess(false)
   }
@@ -166,13 +252,12 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
   function validate() {
     const next = emptyUpdateErrors()
     if (!title.trim()) next.title.push('El título es obligatorio.')
-    else if (title.trim().length > 140) next.title.push('El título no puede superar 140 caracteres.')
     if (!body.trim()) next.body.push('El contenido es obligatorio.')
     media.forEach(item => {
       const rowErrors: string[] = []
       if (item.type !== 'IMAGE' && item.type !== 'VIDEO') rowErrors.push('Selecciona un tipo de medio válido.')
       if (!item.url.trim()) rowErrors.push('La URL del medio es obligatoria.')
-      else if (!isPublicHttpsUrl(item.url.trim())) rowErrors.push('Usa una URL HTTPS pública. No se permiten localhost ni otros esquemas.')
+      else if (!isSafeMediaUrl(item.url.trim())) rowErrors.push('Usa una URL absoluta con http:// o https://. No se permiten esquemas peligrosos.')
       if (rowErrors.length) next.media[item.localId] = rowErrors
     })
     setErrors(next)
@@ -200,7 +285,7 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
       if (fieldError.field === 'title') next.title.push(fieldError.message)
       else if (fieldError.field === 'body') next.body.push(fieldError.message)
       else {
-        const match = fieldError.field.match(/^media\[(\d+)]\.(url|type|mediaType)$/)
+        const match = fieldError.field.match(/^media\[(\d+)]\.(url|type)$/)
         const row = match ? media[Number(match[1])] : null
         if (row) next.media[row.localId] = [...(next.media[row.localId] ?? []), fieldError.message]
       }
@@ -220,29 +305,14 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
         body: body.trim(),
         media: media.map(item => ({ type: item.type, url: item.url.trim() })),
       })
-      if ((updatesResponse?.page ?? 0) === 0) {
-        setUpdatesResponse(current => {
-          if (!current) return current
-          const totalElements = current.totalElements + 1
-          return {
-            ...current,
-            content: [created, ...current.content.filter(update => update.id !== created.id)].slice(0, current.pageSize),
-            totalElements,
-            totalPages: Math.ceil(totalElements / current.pageSize),
-          }
-        })
-      } else {
-        void loadUpdates(0)
-      }
+      setUpdates(current => [created, ...current.filter(update => update.id !== created.id)])
       setTitle('')
       setBody('')
       setMedia([])
       setErrors(emptyUpdateErrors())
       setSuccess(true)
     } catch (requestError) {
-      if (requestError instanceof ApiError && requestError.status === 401) {
-        onSessionExpired()
-      } else if (requestError instanceof ApiError && requestError.status === 403) {
+      if (requestError instanceof ApiError && requestError.status === 403) {
         setEditorForbidden(true)
       } else if (requestError instanceof ApiError && (requestError.status === 400 || requestError.code === 'VALIDATION_ERROR')) {
         applyBackendErrors(requestError.details)
@@ -262,7 +332,7 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
           <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1.5">Muro de campaña</p>
           <h2 id="campaign-updates-title" className="font-display font-800 text-2xl text-gray-900">Actualizaciones del proyecto</h2>
         </div>
-        {!loading && !loadError && updatesResponse && <span className="text-xs text-gray-400">{updatesResponse.totalElements} {updatesResponse.totalElements === 1 ? 'publicación' : 'publicaciones'}</span>}
+        {!loading && !loadError && <span className="text-xs text-gray-400">{updates.length} {updates.length === 1 ? 'publicación' : 'publicaciones'}</span>}
       </div>
 
       {isCreator && !editorForbidden && (
@@ -279,19 +349,19 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
           <div className="space-y-4">
             <div>
               <label htmlFor="update-title" className="block text-sm font-medium text-gray-700 mb-1.5">Título *</label>
-              <input id="update-title" value={title} onChange={event => { setTitle(event.target.value); setErrors(current => ({ ...current, title: [] })); setSuccess(false) }} maxLength={140} disabled={publishing} aria-invalid={errors.title.length > 0} aria-describedby={errors.title.length ? 'update-title-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.title.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Ej: Comenzamos la primera producción" />
+              <input id="update-title" value={title} onChange={event => { setTitle(event.target.value); setErrors(current => ({ ...current, title: [] })); setSuccess(false) }} disabled={publishing} aria-invalid={errors.title.length > 0} aria-describedby={errors.title.length ? 'update-title-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.title.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Ej: Comenzamos la primera producción" />
               <div id="update-title-errors">{errors.title.map(message => <p key={message} className="text-xs text-error mt-1">{message}</p>)}</div>
             </div>
             <div>
-              <div className="flex justify-between mb-1.5"><label htmlFor="update-body" className="block text-sm font-medium text-gray-700">Contenido *</label><span className="text-xs text-gray-400">{body.length}/10000</span></div>
-              <textarea id="update-body" value={body} onChange={event => { setBody(event.target.value); setErrors(current => ({ ...current, body: [] })); setSuccess(false) }} maxLength={10000} rows={6} disabled={publishing} aria-invalid={errors.body.length > 0} aria-describedby={errors.body.length ? 'update-body-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none resize-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.body.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Cuenta qué ha cambiado, qué lograron y cuáles son los próximos pasos." />
+              <div className="flex justify-between mb-1.5"><label htmlFor="update-body" className="block text-sm font-medium text-gray-700">Contenido *</label><span className="text-xs text-gray-400">{body.length}/3000</span></div>
+              <textarea id="update-body" value={body} onChange={event => { setBody(event.target.value); setErrors(current => ({ ...current, body: [] })); setSuccess(false) }} maxLength={3000} rows={6} disabled={publishing} aria-invalid={errors.body.length > 0} aria-describedby={errors.body.length ? 'update-body-errors' : undefined} className={`w-full px-4 py-3 rounded-xl border text-sm outline-none resize-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50 ${errors.body.length ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`} placeholder="Cuenta qué ha cambiado, qué lograron y cuáles son los próximos pasos." />
               <div id="update-body-errors">{errors.body.map(message => <p key={message} className="text-xs text-error mt-1">{message}</p>)}</div>
             </div>
 
             <div className="border-t border-gray-100 pt-5">
               <div className="flex items-center justify-between gap-4 mb-4">
-                <div><p className="text-sm font-semibold text-gray-700">Medios externos</p><p className="text-xs text-gray-400 mt-0.5">Imágenes o videos mediante URL HTTPS segura (máximo 10).</p></div>
-                <button type="button" onClick={addMedia} disabled={media.length >= 10 || publishing} className="text-xs font-semibold text-primary border border-primary rounded-lg px-3 py-2 hover:bg-primary-light disabled:border-gray-200 disabled:text-gray-300">+ Agregar medio</button>
+                <div><p className="text-sm font-semibold text-gray-700">Medios externos</p><p className="text-xs text-gray-400 mt-0.5">Imágenes o videos mediante URL segura.</p></div>
+                <button type="button" onClick={addMedia} disabled={media.length >= 5 || publishing} className="text-xs font-semibold text-primary border border-primary rounded-lg px-3 py-2 hover:bg-primary-light disabled:border-gray-200 disabled:text-gray-300">+ Agregar medio</button>
               </div>
               <div className="space-y-4">
                 {media.map((item, index) => {
@@ -315,7 +385,7 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
                         </div>
                       </div>
                       <div id={`${item.localId}-errors`}>{rowErrors.map(message => <p key={message} className="text-xs text-error mt-1">{message}</p>)}</div>
-                      {isPublicHttpsUrl(item.url) && <div className="mt-3"><SafeMedia media={{ type: item.type, url: item.url, sortOrder: index }} title={title || 'Vista previa'} /></div>}
+                      {isSafeMediaUrl(item.url) && <div className="mt-3"><SafeMedia media={{ type: item.type, url: item.url }} title={title || 'Vista previa'} /></div>}
                     </div>
                   )
                 })}
@@ -340,14 +410,14 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
           <p className="text-sm text-error">{loadError}</p>
           <button type="button" onClick={() => void loadUpdates()} className="mt-3 text-sm font-semibold text-primary hover:underline">Reintentar</button>
         </div>
-      ) : (updatesResponse?.content.length ?? 0) === 0 ? (
+      ) : updates.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-12 px-6 text-center">
           <p className="font-display font-700 text-gray-700">Aún no hay actualizaciones</p>
           <p className="text-sm text-gray-400 mt-1">Las noticias y avances del proyecto aparecerán aquí.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {updatesResponse?.content.map(update => (
+          {updates.map(update => (
             <article key={update.id} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
               {update.media.length > 0 && (
                 <div className={`grid gap-2 p-3 bg-gray-50 ${update.media.length > 1 ? 'sm:grid-cols-2' : ''}`}>
@@ -355,7 +425,7 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
                 </div>
               )}
               <div className="p-6">
-                <p className="text-xs text-gray-400">{new Date(update.publishedAt).toLocaleString('es-ES')}</p>
+                <p className="text-xs text-gray-400">{new Date(update.createdAt ?? update.publishedAt ?? 0).toLocaleString('es-ES')}</p>
                 <h3 className="font-display font-700 text-xl text-gray-900 mt-2">{update.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap mt-3">{update.body}</p>
               </div>
@@ -363,21 +433,12 @@ function CampaignWall({ campaign, user, onSessionExpired }: { campaign: Campaign
           ))}
         </div>
       )}
-      {!loading && !loadError && updatesResponse && updatesResponse.totalPages > 1 && (
-        <nav className="mt-5 flex items-center justify-between gap-3" aria-label="Paginación de actualizaciones">
-          <p className="text-xs text-gray-500">Página {updatesResponse.page + 1} de {updatesResponse.totalPages}</p>
-          <div className="flex gap-2">
-            <button type="button" disabled={updatesResponse.page <= 0} onClick={() => void loadUpdates(updatesResponse.page - 1)} className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300 disabled:bg-gray-50">Anterior</button>
-            <button type="button" disabled={updatesResponse.page + 1 >= updatesResponse.totalPages} onClick={() => void loadUpdates(updatesResponse.page + 1)} className="bg-primary text-white rounded-xl px-4 py-2 text-sm font-semibold disabled:bg-gray-200 disabled:text-gray-400">Siguiente</button>
-          </div>
-        </nav>
-      )}
     </section>
   )
 }
 
 export default function CampaignPage(props: Props) {
-  const { campaignId, campaigns, loading, error, navigate, user, onSessionExpired } = props
+  const { campaignId, campaigns, loading, error, navigate, user, campaignOverride, onCampaignFailed } = props
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [detailLoading, setDetailLoading] = useState(Boolean(campaignId))
   const [detailError, setDetailError] = useState('')
@@ -392,11 +453,27 @@ export default function CampaignPage(props: Props) {
     setDetailLoading(true)
     setDetailError('')
     void api.campaign(campaignId)
-      .then(result => { if (active) setCampaign(result) })
+      .then(result => { if (active) setCampaign(campaignOverride?.id === campaignId ? campaignOverride : result) })
       .catch(requestError => { if (active) setDetailError(apiErrorMessage(requestError, 'No pudimos cargar la campaña.')) })
       .finally(() => { if (active) setDetailLoading(false) })
     return () => { active = false }
   }, [campaignId])
+
+  useEffect(() => {
+    if (campaignOverride?.id === campaignId) setCampaign(campaignOverride)
+  }, [campaignId, campaignOverride])
+
+  useEffect(() => {
+    if (!campaign || campaign.status === 'FAILED' || campaign.fundingModel !== 'FIXED' || campaign.progress.raisedAmount >= campaign.goalAmount) return
+    const deadline = new Date(campaign.deadline).getTime()
+    if (!Number.isFinite(deadline) || deadline > Date.now()) return
+    onCampaignFailed(campaign.id)
+    setCampaign(current => current ? {
+      ...current,
+      status: 'FAILED',
+      progress: { ...current.progress, status: 'FAILED', secondsRemaining: 0 },
+    } : current)
+  }, [campaign?.id, campaign?.status, campaign?.deadline, campaign?.fundingModel, campaign?.goalAmount, campaign?.progress.raisedAmount])
 
   if (!campaignId) return <Projects campaigns={campaigns} loading={loading} error={error} navigate={navigate} />
   if (detailLoading) return <div className="min-h-screen bg-bg flex items-center justify-center text-sm font-semibold text-gray-600">Cargando campaña...</div>
@@ -409,64 +486,136 @@ export default function CampaignPage(props: Props) {
     </div>
   )
 
-  const currencyAvailable = campaign.currencyStatus === 'CONFIGURED' && isCurrencyCode(campaign.currency)
-  const canContribute = user?.role === 'sponsor' && campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0 && currencyAvailable
-  const cta = user?.role !== 'sponsor'
-    ? 'Inicia sesión como patrocinador para aportar'
-    : !currencyAvailable
-      ? 'Moneda pendiente de configuración'
-      : canContribute ? 'Apoyar este proyecto' : 'Campaña no disponible'
+  const canContribute = user?.role === 'sponsor' && campaign.status === 'ACTIVE' && campaign.progress.secondsRemaining > 0
+  const cta = user?.role !== 'sponsor' ? 'Inicia sesión como patrocinador para aportar' : canContribute ? 'Apoyar este proyecto' : 'Campaña no disponible'
+  const model = fundingModelInfo(campaign.fundingModel)
+  const sortedRewards = [...campaign.rewards].sort((a, b) => a.minimumAmount - b.minimumAmount)
+  const isFailedAllOrNothing = campaign.status === 'FAILED' && campaign.fundingModel === 'FIXED' && campaign.progress.raisedAmount < campaign.goalAmount
+  const canSimulateFailure = campaign.fundingModel === 'FIXED' && campaign.status !== 'FAILED' && campaign.progress.raisedAmount < campaign.goalAmount && user?.role === 'creator' && (user.id === campaign.creator.id || campaign.currentUserIsCreator)
+  const fundingModelLocked = campaign.fundingModelEditable === false || campaign.progress.sponsorsCount > 0
+  const activeCampaignId = campaign.id
+
+  function simulateFailure() {
+    onCampaignFailed(activeCampaignId)
+    setCampaign(current => current ? {
+      ...current,
+      status: 'FAILED',
+      progress: { ...current.progress, status: 'FAILED', secondsRemaining: 0 },
+    } : current)
+  }
   return (
     <div className="min-h-screen bg-bg">
       <button onClick={() => navigate('projects')} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 block text-sm text-gray-500 hover:text-primary">← Volver a explorar</button>
       {campaign.mediaUrl ? (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5"><CampaignMedia url={campaign.mediaUrl} mediaType={campaign.mediaType} title={campaign.title} className="w-full h-64 sm:h-96 rounded-2xl" /></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5"><img src={campaign.mediaUrl} alt={campaign.title} className="w-full h-64 sm:h-96 object-cover rounded-2xl bg-gray-100" /></div>
       ) : <div className="max-w-7xl mx-auto h-20" />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {isFailedAllOrNothing && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3" role="status" data-frame="S3_HU322_CampaignFailed">
+            <svg className="w-5 h-5 text-error shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.3 3.7L2.5 17.2A2 2 0 004.2 20h15.6a2 2 0 001.7-2.8L13.7 3.7a2 2 0 00-3.4 0z" /></svg>
+            <div><p className="font-semibold text-red-800">Esta campaña no alcanzó su meta. Los aportes fueron reembolsados.</p><p className="text-xs text-red-700 mt-1">Consulta el historial de transacciones para revisar el comprobante y su referencia original.</p></div>
+          </div>
+        )}
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <span className="text-xs font-semibold text-primary bg-primary-light px-3 py-1 rounded-full">{campaign.category}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-primary bg-primary-light px-3 py-1 rounded-full">{campaign.category}</span>
+              <span className="text-xs font-semibold text-gray-700 bg-white border border-gray-200 px-3 py-1 rounded-full">
+                {model?.label ?? 'Modelo no disponible'}
+              </span>
+            </div>
             <h1 className="font-display font-800 text-3xl sm:text-4xl text-gray-900 mt-4">{campaign.title}</h1>
             <p className="text-sm text-gray-500 mt-2">por <strong className="text-gray-800">{campaign.creator.name}</strong></p>
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mt-8">
-              <h2 className="font-display font-700 text-xl mb-4">Sobre esta campaña</h2>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{campaign.description}</p>
-            </section>
-            <section className="mt-6">
-              <h2 className="font-display font-700 text-xl mb-4">Recompensas</h2>
-              {campaign.rewards.length === 0 ? <div className="bg-white border border-gray-100 rounded-2xl p-6 text-sm text-gray-500">Esta campaña no ofrece recompensas.</div> : (
-                <div className="space-y-3">
-                  {campaign.rewards.map(reward => (
-                    <article key={reward.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                      <div className="flex justify-between gap-4"><h3 className="font-display font-700 text-gray-900">{reward.title}</h3><span className="font-display font-800 text-primary">{formatMoney(reward.minimumAmount, campaign.currency)}+</span></div>
-                      <p className="text-sm text-gray-500 mt-2">{reward.description}</p>
-                      {reward.quantity != null && <p className="text-xs text-gray-400 mt-3">{reward.claimedQuantity ?? 0} de {reward.quantity} reclamadas</p>}
-                    </article>
-                  ))}
+            <div className={`mt-4 flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm ${model ? 'border-primary/15 bg-primary-light/50 text-gray-600' : 'border-yellow-200 bg-yellow-50 text-yellow-800'}`} data-frame="S3_HU212_Published">
+              <svg className="w-5 h-5 text-primary shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 4.5h.008v.008H12V16.5z" /></svg>
+              <div>
+                <p><strong className="text-gray-800">{model?.label ?? 'Modelo no disponible'}.</strong> {model?.note ?? 'El servidor devolvió un modelo que no podemos interpretar. Intenta recargar o contacta soporte.'}</p>
+                <div className="mt-2"><FundingStatusBadge campaign={campaign} /></div>
+                {user?.role === 'creator' && fundingModelLocked && (
+                  <p className="text-xs mt-2" data-frame="S3_HU212_ModelLocked">
+                    {campaign.fundingModelLockedReason || 'El modelo está bloqueado porque la campaña ya recibió aportes.'}
+                  </p>
+                )}
+              </div>
+            </div>
+            <CampaignTabs
+              key={campaign.id}
+              campaign={campaign}
+              user={user}
+              onLogin={() => navigate('login')}
+              information={(
+                <div>
+                  <h2 className="font-display font-700 text-xl mb-4">Sobre esta campaña</h2>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{campaign.description}</p>
                 </div>
               )}
-            </section>
-            <CampaignWall campaign={campaign} user={user} onSessionExpired={onSessionExpired} />
+              updates={<CampaignWall campaign={campaign} user={user} />}
+            />
           </div>
-          <aside>
-            <div className="lg:sticky lg:top-20 bg-white rounded-2xl border border-gray-100 shadow-md p-6">
+          <aside className="space-y-5">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-6">
               <div className="flex items-end justify-between">
-                <p className="font-display font-800 text-3xl">{formatMoney(campaign.progress.raisedAmount, campaign.currency)}</p>
+                <p className="font-display font-800 text-3xl">${campaign.progress.raisedAmount.toLocaleString()}</p>
                 <p className="font-bold text-primary">{campaign.progress.percentage}%</p>
               </div>
-              <p className="text-xs text-gray-400">recaudados de {formatMoney(campaign.goalAmount, campaign.currency)}</p>
+              <p className="text-xs text-gray-400">recaudados de ${campaign.goalAmount.toLocaleString()}</p>
               <div className="h-3 rounded-full bg-gray-100 overflow-hidden my-3"><div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(campaign.progress.percentage, 100)}%` }} /></div>
-              <p className="text-xs text-gray-500">Faltan <strong>{formatMoney(campaign.progress.remainingAmount, campaign.currency)}</strong></p>
+              <p className="text-xs text-gray-500">Faltan <strong>${campaign.progress.remainingAmount.toLocaleString()}</strong></p>
               <div className="grid grid-cols-2 gap-3 my-5">
                 <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="font-display font-700 text-xl">{campaign.progress.sponsorsCount}</p><p className="text-xs text-gray-500">Patrocinadores</p></div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="font-display font-700 text-sm text-primary">{campaign.status}</p><p className="text-xs text-gray-500">Estado</p></div>
               </div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tiempo restante</p>
               <Countdown initialSeconds={campaign.progress.secondsRemaining} />
-              <button disabled={!canContribute} onClick={() => navigate('payment-flow', campaign.id)} className="w-full mt-6 bg-primary text-white rounded-xl py-3 text-sm font-semibold hover:bg-primary-hover disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed">{cta}</button>
-              {!currencyAvailable && <p className="text-center text-xs text-warning mt-3">Esta campaña aún no permite aportes porque no tiene una moneda autorizada.</p>}
+              {!isFailedAllOrNothing && <button disabled={!canContribute} onClick={() => navigate('payment-flow', campaign.id)} className="w-full mt-6 bg-primary text-white rounded-xl py-3 text-sm font-semibold hover:bg-primary-hover disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed">{cta}</button>}
+              {canSimulateFailure && <button type="button" onClick={simulateFailure} className="w-full mt-3 border border-red-200 text-error rounded-xl py-2.5 text-xs font-semibold hover:bg-red-50">Simular cierre de campaña fallida</button>}
               {campaign.progress.percentage === 0 && <p className="text-center text-xs text-gray-400 mt-3">¡Sé el primero en apoyar este proyecto!</p>}
             </div>
+            <section aria-labelledby="campaign-rewards-title">
+              <div className="flex items-end justify-between gap-3 mb-3">
+                <h2 id="campaign-rewards-title" className="font-display font-700 text-lg text-gray-900">Recompensas</h2>
+                {sortedRewards.length > 0 && <span className="text-xs text-gray-400">{sortedRewards.length} {sortedRewards.length === 1 ? 'opción' : 'opciones'}</span>}
+              </div>
+              {sortedRewards.length === 0 ? (
+                <div className="bg-white border border-gray-100 rounded-2xl p-5 text-sm text-gray-500">Esta campaña acepta aportes libres y no ofrece recompensas.</div>
+              ) : (
+                <div className="space-y-3">
+                  {sortedRewards.map(reward => {
+                    const soldOut = reward.quantity !== null && reward.claimedQuantity >= reward.quantity
+                    const remaining = reward.quantity === null ? null : Math.max(reward.quantity - reward.claimedQuantity, 0)
+                    const selectable = canContribute && reward.available && !soldOut
+                    const frame = soldOut
+                      ? 'S3_HU213_Reward_SoldOut'
+                      : reward.quantity === null
+                        ? 'S3_HU213_Reward_Unlimited'
+                        : 'S3_HU213_Reward_LimitedRemaining'
+                    return (
+                      <article key={reward.id} data-frame={frame} className={`bg-white rounded-2xl border shadow-sm p-5 ${soldOut ? 'border-red-200' : 'border-gray-100'}`}>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary">Aporta desde</p>
+                        <p className="font-display font-800 text-2xl text-gray-900 mt-1">${reward.minimumAmount.toLocaleString('es-ES')}</p>
+                        <h3 className="font-display font-700 text-gray-900 mt-4">{reward.title}</h3>
+                        <p className="text-sm text-gray-500 leading-relaxed mt-1.5">{reward.description}</p>
+                        <p className="text-xs text-gray-500 mt-3">
+                          Entrega estimada: <strong className="text-gray-700">{reward.estimatedDeliveryDate ? new Date(`${reward.estimatedDeliveryDate.slice(0, 10)}T00:00:00`).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }) : 'Por confirmar'}</strong>
+                        </p>
+                        <div className={`mt-4 rounded-lg px-3 py-2 text-xs font-semibold ${soldOut ? 'bg-red-50 text-error' : 'bg-gray-50 text-gray-600'}`}>
+                          {soldOut ? 'Agotado' : reward.quantity === null ? 'Cupos ilimitados' : `Quedan ${remaining} cupos`}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!selectable}
+                          aria-disabled={!selectable}
+                          onClick={() => props.onSelectReward(campaign.id, reward.id)}
+                          className="w-full mt-4 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary-light disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        >
+                          {soldOut ? 'Agotado' : 'Seleccionar'}
+                        </button>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
           </aside>
         </div>
       </div>
