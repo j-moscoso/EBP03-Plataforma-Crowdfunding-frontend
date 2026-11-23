@@ -121,6 +121,17 @@ html[data-theme='dark'] .bg-slate-100 {
   background-color: #25312C;
 }
 
+input,
+textarea,
+select {
+  background-color: var(--color-surface);
+}
+
+select option {
+  background-color: var(--color-surface);
+  color: var(--color-gray-900);
+}
+
 html[data-theme='dark'] input,
 html[data-theme='dark'] textarea,
 html[data-theme='dark'] select {

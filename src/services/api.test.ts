@@ -104,6 +104,52 @@ describe('frontend API integration contracts', () => {
     )
   })
 
+  it('sends campaign currency and media type in the draft payload', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      id: 'draft-1',
+      title: 'Huerta comunitaria',
+      description: 'Una campaña',
+      goalAmount: 30000,
+      durationDays: 30,
+      category: 'Comunidad',
+      currency: 'COP',
+      mediaUrl: 'https://cdn.example/video.mp4',
+      mediaType: 'VIDEO',
+      fundingModel: 'FIXED',
+      rewards: [],
+      completionPercentage: 100,
+      savedAt: '2026-11-23T12:00:00Z',
+    }))
+
+    const draft = await api.createDraft({
+      title: 'Huerta comunitaria',
+      description: 'Una campaña',
+      goalAmount: 30000,
+      durationDays: 30,
+      category: 'Comunidad',
+      currency: 'COP',
+      mediaUrl: 'https://cdn.example/video.mp4',
+      mediaType: 'VIDEO',
+      fundingModel: 'FIXED',
+      rewards: [],
+    })
+
+    expect(draft).toMatchObject({ currency: 'COP', mediaType: 'VIDEO' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/drafts'),
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+      }),
+    )
+    const [, request] = fetchMock.mock.calls[0]
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      goalAmount: 30000,
+      currency: 'COP',
+      mediaType: 'VIDEO',
+    })
+  })
+
   it('extracts the public user from the PATCH response wrapper', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       message: 'Datos actualizados',

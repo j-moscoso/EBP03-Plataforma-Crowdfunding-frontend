@@ -63,6 +63,8 @@ export class InkTransition {
     )
     window.addEventListener('resize', this.handleResize)
     window.addEventListener('impulsafund:route-ready', this.handleRouteChange)
+    document.addEventListener('input', this.handleContentChange)
+    document.addEventListener('change', this.handleContentChange)
     this.reducedMotion.addEventListener('change', this.handleMotionChange)
     this.resizeObserver = typeof ResizeObserver === 'undefined'
       ? null
@@ -145,6 +147,8 @@ export class InkTransition {
     window.clearTimeout(this.cssFadeTimer)
     window.removeEventListener('resize', this.handleResize)
     window.removeEventListener('impulsafund:route-ready', this.handleRouteChange)
+    document.removeEventListener('input', this.handleContentChange)
+    document.removeEventListener('change', this.handleContentChange)
     this.reducedMotion.removeEventListener('change', this.handleMotionChange)
     this.resizeObserver?.disconnect()
   }
@@ -156,6 +160,12 @@ export class InkTransition {
   }
 
   private readonly handleMotionChange = () => this.scheduleCapture(0)
+
+  private readonly handleContentChange = () => {
+    this.captureGeneration += 1
+    this.captureQueued = true
+    this.scheduleCapture(RESIZE_DEBOUNCE_MS)
+  }
 
   private readonly handleRouteChange = () => {
     this.captureGeneration += 1

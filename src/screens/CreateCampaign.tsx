@@ -1,6 +1,12 @@
 import { useState } from 'react'
-import type { Campaign, Draft, DraftPayload, FundingModel, Screen, User } from '../types'
+import type { Campaign, CampaignMediaType, Draft, DraftPayload, FundingModel, Screen, User } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
+import {
+  formatGoalInput,
+  isValidIsoDate,
+  localDateInputValue,
+  numericGoalValue,
+} from '../utils/campaignForm'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
@@ -34,23 +40,34 @@ interface Errors {
   goal?: string
   duration?: string
   category?: string
+  currency?: string
   fundingModel?: string
   rewards: Record<string, RewardErrors>
 }
 
 const categories = ['Tecnología', 'Medio ambiente', 'Arte', 'Salud', 'Educación', 'Comunidad', 'Ciencia', 'Emprendimiento']
+const currencies = [
+  { code: 'USD', flag: '🇺🇸', label: 'Dólar estadounidense' },
+  { code: 'EUR', flag: '🇪🇺', label: 'Euro' },
+  { code: 'COP', flag: '🇨🇴', label: 'Peso colombiano' },
+  { code: 'MXN', flag: '🇲🇽', label: 'Peso mexicano' },
+  { code: 'ARS', flag: '🇦🇷', label: 'Peso argentino' },
+  { code: 'CLP', flag: '🇨🇱', label: 'Peso chileno' },
+  { code: 'PEN', flag: '🇵🇪', label: 'Sol peruano' },
+] as const
 const validMoney = (value: string) => /^\d+(?:\.\d{1,2})?$/.test(value) && Number(value) > 0
 const rewardDescriptionLimit = 1000
-const validIsoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
 
 export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, onPublish, user }: Props) {
   const [currentDraft, setCurrentDraft] = useState(initialDraft)
   const [title, setTitle] = useState(initialDraft?.title ?? '')
   const [description, setDescription] = useState(initialDraft?.description ?? '')
-  const [goal, setGoal] = useState(initialDraft?.goalAmount?.toString() ?? '')
+  const [goal, setGoal] = useState(initialDraft?.goalAmount == null ? '' : formatGoalInput(String(initialDraft.goalAmount)))
   const [duration, setDuration] = useState(initialDraft?.durationDays?.toString() ?? '')
   const [category, setCategory] = useState(initialDraft?.category ?? '')
+  const [currency, setCurrency] = useState(initialDraft?.currency ?? 'USD')
   const [mediaUrl, setMediaUrl] = useState(initialDraft?.mediaUrl ?? '')
+  const [mediaType, setMediaType] = useState<CampaignMediaType>(initialDraft?.mediaType ?? 'IMAGE')
   const [fundingModel, setFundingModel] = useState<FundingModel>(initialDraft?.fundingModel ?? 'FIXED')
   const [rewards, setRewards] = useState<FormReward[]>(
     initialDraft?.rewards.map(reward => ({
@@ -69,6 +86,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
   const [pending, setPending] = useState<'save' | 'publish' | null>(null)
   const [retryAction, setRetryAction] = useState<'save' | 'publish' | null>(null)
   const fundingModelEditable = currentDraft?.fundingModelEditable !== false
+  const today = localDateInputValue()
   const canSubmit = user.role === 'creator'
   const hasFieldErrors = Boolean(
     errors.title ||
@@ -76,6 +94,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
     errors.goal ||
     errors.duration ||
     errors.category ||
+    errors.currency ||
     errors.fundingModel ||
     Object.keys(errors.rewards).length,
   )
@@ -92,10 +111,11 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
     if (forPublish && !title.trim()) next.title = 'El título es obligatorio para publicar.'
     if (forPublish && !description.trim()) next.description = 'La descripción es obligatoria para publicar.'
     if (!goal) next.goal = 'Este campo es obligatorio.'
-    else if (!validMoney(goal)) next.goal = 'Ingresa una meta positiva con máximo dos decimales.'
+    else if (!validMoney(numericGoalValue(goal))) next.goal = 'Ingresa una meta positiva con máximo dos decimales.'
     if (!duration) next.duration = 'Este campo es obligatorio.'
     else if (!/^\d+$/.test(duration) || Number(duration) <= 0) next.duration = 'Ingresa una duración positiva en días.'
     if (!category) next.category = 'Este campo es obligatorio.'
+    if (!currencies.some(item => item.code === currency)) next.currency = 'Selecciona una moneda válida.'
     if (fundingModel !== 'FIXED' && fundingModel !== 'FLEXIBLE') next.fundingModel = 'Selecciona un modelo de recaudación válido.'
     rewards.forEach(reward => {
       const rewardErrors: RewardErrors = {}
@@ -104,24 +124,27 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
       if (!reward.description.trim()) rewardErrors.description = 'La descripción es obligatoria'
       else if (reward.description.trim().length > rewardDescriptionLimit) rewardErrors.description = `La descripción no puede superar ${rewardDescriptionLimit} caracteres`
       if (!validMoney(reward.minimumAmount)) rewardErrors.minimumAmount = 'El monto debe ser mayor a 0'
-      if (!validIsoDate(reward.estimatedDeliveryDate)) rewardErrors.estimatedDeliveryDate = 'Ingresa una fecha válida'
+      if (!isValidIsoDate(reward.estimatedDeliveryDate)) rewardErrors.estimatedDeliveryDate = 'Ingresa una fecha válida'
+      else if (reward.estimatedDeliveryDate < today) rewardErrors.estimatedDeliveryDate = 'La entrega no puede ser anterior a hoy'
       if (!reward.unlimited && (!/^\d+$/.test(reward.quantity) || Number(reward.quantity) <= 0)) {
         rewardErrors.quantity = 'Los cupos deben ser un entero positivo'
       }
       if (Object.keys(rewardErrors).length) next.rewards[reward.id] = rewardErrors
     })
     setErrors(next)
-    return !next.title && !next.description && !next.goal && !next.duration && !next.category && !next.fundingModel && Object.keys(next.rewards).length === 0
+    return !next.title && !next.description && !next.goal && !next.duration && !next.category && !next.currency && !next.fundingModel && Object.keys(next.rewards).length === 0
   }
 
   function payload(): DraftPayload {
     return {
       title: title.trim(),
       description: description.trim(),
-      goalAmount: goal ? Number(goal) : null,
+      goalAmount: goal ? Number(numericGoalValue(goal)) : null,
       durationDays: duration ? Number(duration) : null,
       category,
+      currency,
       mediaUrl: mediaUrl.trim() || null,
+      mediaType,
       fundingModel,
       rewards: rewards.map(reward => ({
         title: reward.title.trim(),
@@ -227,19 +250,19 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
     setRequestError(apiErrorMessage(error, fallback))
   }
 
-  const input = (error?: string) => `w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-primary/20 ${error ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`
+  const input = (error?: string) => `w-full bg-surface px-4 py-3 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-primary/20 ${error ? 'border-error bg-red-50' : 'border-gray-200 focus:border-primary'}`
 
   return (
     <div className="min-h-screen bg-bg" data-screen-frame="S3_HU212_Create_Default">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-        <div className="sticky top-16 z-40 -mx-4 sm:-mx-6 bg-white/95 backdrop-blur border-b border-gray-100 px-4 sm:px-6 py-3 mb-8 flex items-center justify-between gap-3 shadow-sm">
+        <div className="sticky top-16 z-40 -mx-4 sm:-mx-6 bg-surface/95 backdrop-blur border-b border-gray-100 px-4 sm:px-6 py-3 mb-8 flex items-center justify-between gap-3 shadow-sm">
           <div className="min-w-0">
             <button onClick={() => navigate('creator-dashboard')} className="text-xs text-gray-500 hover:text-primary">← Volver al panel</button>
             <h1 className="font-display font-700 text-gray-900 truncate">{title || 'Nueva campaña'} <span className="text-xs text-gray-400">· Borrador</span></h1>
           </div>
-          <div className="flex gap-2">
-            <button disabled={Boolean(pending) || !canSubmit} onClick={() => void saveDraft()} className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50">{pending === 'save' ? 'Guardando modelo...' : 'Guardar borrador'}</button>
-            <button disabled={Boolean(pending) || !canSubmit} onClick={() => void publish()} className="bg-primary text-white rounded-xl px-4 py-2 text-sm font-semibold disabled:bg-gray-300">{pending === 'publish' ? 'Publicando...' : 'Publicar'}</button>
+          <div className="flex shrink-0 gap-2">
+            <button disabled={Boolean(pending) || !canSubmit} onClick={() => void saveDraft()} className="border border-gray-200 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold disabled:opacity-50">{pending === 'save' ? 'Guardando...' : 'Guardar borrador'}</button>
+            <button disabled={Boolean(pending) || !canSubmit} onClick={() => void publish()} className="bg-primary text-white rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold disabled:bg-gray-300">{pending === 'publish' ? 'Publicando...' : 'Publicar'}</button>
           </div>
         </div>
 
@@ -279,10 +302,17 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
 
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <h2 className="font-display font-700 text-lg mb-5">2. Financiamiento</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div><label className="block text-sm font-medium mb-1.5">Meta *</label><input inputMode="decimal" value={goal} onChange={event => setGoal(event.target.value)} className={input(errors.goal)} placeholder="30000" />{errors.goal && <p className="text-xs text-error mt-1">{errors.goal}</p>}</div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div><label className="block text-sm font-medium mb-1.5">Meta *</label><input inputMode="decimal" value={goal} onChange={event => { setGoal(formatGoalInput(event.target.value)); setErrors(current => ({ ...current, goal: undefined })) }} className={input(errors.goal)} placeholder="30,000" aria-label={`Meta en ${currency}`} />{errors.goal && <p className="text-xs text-error mt-1">{errors.goal}</p>}</div>
               <div><label className="block text-sm font-medium mb-1.5">Duración (días) *</label><input inputMode="numeric" value={duration} onChange={event => setDuration(event.target.value)} className={input(errors.duration)} placeholder="30" />{errors.duration && <p className="text-xs text-error mt-1">{errors.duration}</p>}</div>
               <div><label className="block text-sm font-medium mb-1.5">Categoría *</label><select value={category} onChange={event => setCategory(event.target.value)} className={input(errors.category)}><option value="">Seleccionar...</option>{categories.map(item => <option key={item}>{item}</option>)}</select>{errors.category && <p className="text-xs text-error mt-1">{errors.category}</p>}</div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Moneda *</label>
+                <select value={currency} onChange={event => { setCurrency(event.target.value); setErrors(current => ({ ...current, currency: undefined })) }} className={input(errors.currency)}>
+                  {currencies.map(item => <option key={item.code} value={item.code}>{item.flag} {item.code} — {item.label}</option>)}
+                </select>
+                {errors.currency && <p className="text-xs text-error mt-1">{errors.currency}</p>}
+              </div>
             </div>
           </section>
 
@@ -421,7 +451,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
                       </div>
                       <div>
                         <label htmlFor={`${reward.id}-date`} className="block text-xs font-medium text-gray-600 mb-1">Entrega estimada *</label>
-                        <input id={`${reward.id}-date`} type="date" value={reward.estimatedDeliveryDate} onChange={event => updateReward(reward.id, 'estimatedDeliveryDate', event.target.value)} aria-invalid={Boolean(dateField.error)} aria-describedby={dateField.describedBy} className={input(dateField.error)} />
+                        <input id={`${reward.id}-date`} type="date" min={today} value={reward.estimatedDeliveryDate} onChange={event => updateReward(reward.id, 'estimatedDeliveryDate', event.target.value)} aria-invalid={Boolean(dateField.error)} aria-describedby={dateField.describedBy} className={input(dateField.error)} />
                         {dateField.error && <p id={dateField.errorId} className="text-xs text-error mt-1">{dateField.error}</p>}
                       </div>
                       <div>
@@ -455,9 +485,26 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
 
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <h2 className="font-display font-700 text-lg mb-5">5. Medios</h2>
-            <label className="block text-sm font-medium mb-1.5">URL opcional de imagen o video</label>
-            <input type="url" value={mediaUrl} onChange={event => setMediaUrl(event.target.value)} className={input()} placeholder="https://..." />
-            {mediaUrl && <div className="mt-4 h-44 bg-gray-100 rounded-xl overflow-hidden"><img src={mediaUrl} alt="Vista previa" className="w-full h-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} /></div>}
+            <div className="grid sm:grid-cols-[11rem_1fr] gap-4">
+              <div>
+                <label htmlFor="campaign-media-type" className="block text-sm font-medium mb-1.5">Tipo de medio</label>
+                <select id="campaign-media-type" value={mediaType} onChange={event => setMediaType(event.target.value as CampaignMediaType)} className={input()}>
+                  <option value="IMAGE">Imagen</option>
+                  <option value="VIDEO">Video</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="campaign-media-url" className="block text-sm font-medium mb-1.5">URL opcional</label>
+                <input id="campaign-media-url" type="url" value={mediaUrl} onChange={event => setMediaUrl(event.target.value)} className={input()} placeholder={mediaType === 'IMAGE' ? 'https://.../imagen.jpg' : 'https://.../video.mp4'} />
+              </div>
+            </div>
+            {mediaUrl && (
+              <div className="mt-4 h-44 bg-gray-100 rounded-xl overflow-hidden">
+                {mediaType === 'IMAGE'
+                  ? <img src={mediaUrl} alt="Vista previa de la campaña" className="w-full h-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} />
+                  : <video src={mediaUrl} controls preload="metadata" className="w-full h-full bg-gray-900" aria-label="Vista previa del video de campaña" />}
+              </div>
+            )}
           </section>
         </div>
       </div>

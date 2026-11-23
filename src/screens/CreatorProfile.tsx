@@ -575,7 +575,7 @@ export default function CreatorProfile({ navigate, onSessionExpired }: Props) {
             )}
           </section>
 
-          <div className="sticky bottom-4 bg-white/95 backdrop-blur border border-gray-100 shadow-lg rounded-2xl p-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="sticky bottom-4 bg-surface/95 backdrop-blur border border-gray-100 shadow-lg rounded-2xl p-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-xs text-gray-400">Los cambios se guardan únicamente al confirmar.</p>
             <div className="flex flex-col-reverse sm:flex-row gap-3">
               <button type="button" onClick={() => navigate('creator-dashboard')} disabled={saving} className="px-5 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 disabled:text-gray-300">Cancelar</button>
