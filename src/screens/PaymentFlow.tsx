@@ -152,6 +152,10 @@ export default function PaymentFlow({ campaignId, initialRewardId, user, navigat
     } catch (error) {
       setStatus('form')
       if (error instanceof ApiError) {
+        if (error.code === 'NO_ACTIVE_CAMPAIGNS_FOR_SUBSCRIPTION') {
+          setCampaignError('Este creador no tiene campañas activas que reciban aportes en esta moneda.')
+          return
+        }
         if (error.code === 'REWARD_SOLD_OUT') {
           setRewardId('')
           await loadCampaign(false)
@@ -214,10 +218,10 @@ export default function PaymentFlow({ campaignId, initialRewardId, user, navigat
                   </button>
                   <button type="button" role="radio" aria-checked={supportMode === 'monthly'} onClick={() => { setSupportMode('monthly'); setRewardId(''); setCampaignError('') }} className={`w-full text-left rounded-xl border-2 p-4 ${supportMode === 'monthly' ? 'border-primary bg-primary-light/50' : 'border-gray-200'}`}>
                     <span className="font-display font-700 text-sm text-gray-900">Suscripción mensual a {campaign.creator.name}</span>
-                    <span className="block text-xs text-gray-500 mt-1">El primer cobro es ahora y los siguientes se realizan cada mes. Apoya al creador en general; no incluye recompensas de esta campaña.</span>
+                    <span className="block text-xs text-gray-500 mt-1">El primer cobro es ahora y los siguientes se realizan cada mes. El monto se reparte entre las campañas activas del creador en {currency}. Apoya al creador en general; no incluye recompensas de esta campaña.</span>
                   </button>
                   {supportMode === 'monthly' ? (
-                    <p className="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-500">Administra o cancela tus cobros futuros desde «Mis suscripciones».</p>
+                    <p className="rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-500">Si no hay campañas activas en esta moneda al renovar, ese mes no se cobrará. Administra o cancela tu suscripción desde «Mis suscripciones».</p>
                   ) : (
                     <>
                       <button type="button" role="radio" aria-checked={!rewardId} onClick={() => setRewardId('')} className={`w-full text-left rounded-xl border-2 p-4 ${!rewardId ? 'border-primary bg-primary-light/50' : 'border-gray-200'}`}>

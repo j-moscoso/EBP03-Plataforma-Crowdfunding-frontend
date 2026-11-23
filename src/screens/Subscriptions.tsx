@@ -169,6 +169,10 @@ export default function Subscriptions({
           onSessionExpired()
           return
         }
+        if (requestError.code === 'NO_ACTIVE_CAMPAIGNS_FOR_SUBSCRIPTION') {
+          setGeneralError('Este creador no tiene campañas activas que reciban aportes en la moneda seleccionada.')
+          return
+        }
         const inline = backendFieldErrors(requestError.details)
         if (requestError.code === 'PAYMENT_METHOD_INVALID' || requestError.code === 'INVALID_PAYMENT_METHOD') {
           inline.paymentMethodId = 'El método de pago seleccionado no es válido.'
@@ -310,7 +314,7 @@ export default function Subscriptions({
             ) : (
               <form onSubmit={subscribe} noValidate className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm" data-frame={creating ? 'S3_HU312_Subscribe_Loading' : generalError ? 'S3_HU312_Subscribe_PaymentError' : 'S3_HU312_Subscribe_Default'}>
                 <h2 className="font-display font-800 text-xl text-gray-900">Crear apoyo mensual</h2>
-                <p className="text-xs text-gray-500 mt-1 mb-5">Solo enviaremos el identificador del método simulado.</p>
+                <p className="text-xs text-gray-500 mt-1 mb-5">El monto se divide entre las campañas activas del creador que usan esta moneda. Si no tiene campañas compatibles al renovar, no se cobrará ese mes. Solo enviaremos el identificador del método simulado.</p>
                 {generalError && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{generalError}</div>}
                 <div className="space-y-4">
                   <div>
