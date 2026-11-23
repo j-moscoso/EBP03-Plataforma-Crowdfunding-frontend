@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { ContributionStatus, PageResponse, ReceiptStatus, Screen, SimulatedContribution, TransactionHistoryItem } from '../types'
+import type { ContributionStatus, PageResponse, ReceiptStatus, Screen, TransactionHistoryItem } from '../types'
 import { api, apiErrorMessage } from '../services/api'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
-  simulatedContributions: SimulatedContribution[]
 }
 
 const receiptStyles: Record<ReceiptStatus, { label: string; classes: string }> = {
@@ -192,7 +191,7 @@ function TransactionDetail({
   )
 }
 
-export default function TransactionHistory({ navigate, simulatedContributions }: Props) {
+export default function TransactionHistory({ navigate }: Props) {
   const [response, setResponse] = useState<PageResponse<TransactionHistoryItem> | null>(null)
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -258,22 +257,7 @@ export default function TransactionHistory({ navigate, simulatedContributions }:
     }
   }
 
-  const simulatedItems: TransactionHistoryItem[] = simulatedContributions.map(item => ({
-    contributionId: item.id,
-    date: item.createdAt,
-    projectName: item.campaignTitle,
-    campaignId: item.campaignId,
-    amount: item.amount,
-    currency: item.currency,
-    referenceCode: `SIM-${item.id.slice(0, 8).toUpperCase()}`,
-    receiptStatus: item.receiptStatus,
-    receiptStatusLabel: item.receiptStatus === 'REFUNDED' ? 'Reembolsado' : 'Retenido',
-    contributionStatus: item.receiptStatus === 'REFUNDED' ? 'REFUNDED' : 'HELD',
-    paymentStatus: 'SIMULATED',
-    refundedAt: item.refundedAt ?? null,
-    contributionType: item.frequency === 'monthly' ? 'SUBSCRIPTION' : 'ONE_TIME',
-  }))
-  const items = [...simulatedItems, ...(response?.content ?? [])]
+  const items = response?.content ?? []
 
   return (
     <div className="min-h-screen bg-bg">
@@ -293,7 +277,7 @@ export default function TransactionHistory({ navigate, simulatedContributions }:
           </button>
         </div>
 
-        {!loading && (response || simulatedItems.length > 0) && (
+        {!loading && response && (
           <div className="grid sm:grid-cols-2 gap-4 mb-8">
             <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-5">
               <p className="text-xs font-semibold text-gray-500">Total en esta página</p>
@@ -308,9 +292,7 @@ export default function TransactionHistory({ navigate, simulatedContributions }:
 
         {copyError && <div className="mb-5 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700" role="alert">{copyError}</div>}
         {copiedId && <p className="sr-only" role="status" aria-live="polite">Referencia copiada correctamente.</p>}
-        {error && simulatedItems.length > 0 && <div className="mb-5 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">Mostramos tus aportes simulados. El historial del servidor no está disponible en este momento.</div>}
-
-        {loading ? <HistorySkeleton /> : error && simulatedItems.length === 0 ? (
+        {loading ? <HistorySkeleton /> : error ? (
           <div className="bg-white border border-red-100 shadow-sm rounded-2xl py-14 px-6 text-center">
             <div className="w-12 h-12 rounded-full bg-red-50 text-error flex items-center justify-center text-xl font-bold mx-auto mb-4" aria-hidden="true">!</div>
             <h2 className="font-display font-700 text-gray-900">No pudimos cargar el historial</h2>

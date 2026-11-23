@@ -11,9 +11,7 @@ import { ApiError, api, apiErrorMessage } from '../services/api'
 interface Props {
   user: User
   creators: Array<Pick<User, 'id' | 'name'>>
-  localSubscriptions: CreatorSubscription[]
   navigate: (screen: Screen, id?: string | null) => void
-  onLocalSubscriptionCancelled: (id: string, cancelledAt: string) => void
   onSessionExpired: () => void
 }
 
@@ -61,9 +59,7 @@ function backendFieldErrors(details: unknown) {
 export default function Subscriptions({
   user,
   creators,
-  localSubscriptions,
   navigate,
-  onLocalSubscriptionCancelled,
   onSessionExpired,
 }: Props) {
   const [response, setResponse] = useState<PageResponse<CreatorSubscription> | null>(null)
@@ -201,17 +197,11 @@ export default function Subscriptions({
     setCancelError('')
     try {
       let cancelled: CreatorSubscription
-      if (target.id.startsWith('sim-sub-')) {
-        const cancelledAt = new Date().toISOString()
-        onLocalSubscriptionCancelled(target.id, cancelledAt)
-        cancelled = { ...target, status: 'CANCELLED', nextChargeAt: null, cancelledAt }
-      } else {
-        cancelled = (await api.cancelSubscription(target.id)) || {
-          ...target,
-          status: 'CANCELLED',
-          nextChargeAt: null,
-          cancelledAt: new Date().toISOString(),
-        }
+      cancelled = (await api.cancelSubscription(target.id)) || {
+        ...target,
+        status: 'CANCELLED',
+        nextChargeAt: null,
+        cancelledAt: new Date().toISOString(),
       }
       setResponse(current => current ? {
         ...current,
@@ -229,11 +219,7 @@ export default function Subscriptions({
     }
   }
 
-  const serverSubscriptions = response?.content ?? []
-  const subscriptions = [
-    ...localSubscriptions,
-    ...serverSubscriptions.filter(item => !localSubscriptions.some(local => local.id === item.id)),
-  ]
+  const subscriptions = response?.content ?? []
   const frame = creating
     ? 'S3_HU312_Subscribe_Loading'
     : created
@@ -259,12 +245,11 @@ export default function Subscriptions({
         <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem] gap-8 items-start">
           <section aria-labelledby="subscriptions-list-title">
             <h2 id="subscriptions-list-title" className="font-display font-700 text-xl text-gray-900 mb-4">Planes mensuales</h2>
-            {loadError && localSubscriptions.length > 0 && <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">Mostramos tus suscripciones simuladas. {loadError}</div>}
             {loading ? (
               <div className="space-y-3" role="status" aria-label="Cargando suscripciones">
                 {[1, 2, 3].map(item => <div key={item} className="h-40 rounded-2xl border border-gray-100 bg-white animate-pulse" />)}
               </div>
-            ) : loadError && localSubscriptions.length === 0 ? (
+            ) : loadError ? (
               <div className="rounded-2xl border border-red-100 bg-white p-8 text-center">
                 <p className="text-sm text-error">{loadError}</p>
                 <button type="button" onClick={() => void load(page)} className="mt-4 text-sm font-semibold text-primary">Reintentar</button>

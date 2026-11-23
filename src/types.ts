@@ -24,8 +24,7 @@ export type CampaignMediaType = 'IMAGE' | 'VIDEO'
 export type ContributionStatus = 'PENDING' | 'HELD' | 'CONFIRMED' | 'FAILED' | 'REFUNDED'
 export type CampaignUpdateMediaType = 'IMAGE' | 'VIDEO'
 export type ReceiptStatus = 'HELD' | 'SUCCESSFUL' | 'REFUNDED' | 'FAILED'
-export type PaymentStatus = 'PENDING' | 'AUTHORIZED' | 'CONFIRMED' | 'FAILED' | 'REFUNDED' | 'SIMULATED'
-export type ContributionFrequency = 'once' | 'monthly'
+export type PaymentStatus = 'CREATED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'
 export type SubscriptionStatus = 'ACTIVE' | 'CANCELLED' | 'FAILED'
 export type SupportedCampaignStatusCode = CampaignStatus
 export type CampaignCurrencyStatus = 'CONFIGURED' | 'UNAVAILABLE'
@@ -150,20 +149,24 @@ export interface CampaignComment {
   createdAt: string
 }
 
-export interface SimulatedContribution {
+export interface CampaignFaqItem {
   id: string
   campaignId: string
-  campaignTitle: string
-  creatorId: string
-  sponsorId: string
-  sponsorName: string
-  amount: number
-  currency: string
-  rewardId: string | null
-  frequency: ContributionFrequency
-  receiptStatus: Extract<ReceiptStatus, 'HELD' | 'REFUNDED'>
-  refundedAt?: string | null
+  authorId: string
+  authorName: string
+  parentCommentId: string | null
+  body: string
+  isOfficialAnswer: boolean
+  isFaq: boolean
   createdAt: string
+  answer: CampaignComment
+  question: CampaignComment
+}
+
+export interface FundingModelUpdateResponse {
+  campaignId: string
+  fundingModel: FundingModel
+  updatedAt: string
 }
 
 export interface Progress {

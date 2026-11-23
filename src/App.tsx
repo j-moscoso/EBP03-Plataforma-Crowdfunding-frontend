@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   Campaign,
-  CreatorSubscription,
   Draft,
   Notification,
   Screen,
-  SimulatedContribution,
   CampaignSummary,
   User,
 } from './types'
@@ -55,7 +53,7 @@ function routeFromPath(pathname: string, search: string): Route {
     }
   }
   const map: Record<string, Screen> = {
-    '/': 'register',
+    '/': 'login',
     '/register': 'register',
     '/login': 'login',
     '/password-reset': 'password-reset-request',
@@ -114,8 +112,6 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [notificationsError, setNotificationsError] = useState('')
-  const [subscriptions, setSubscriptions] = useState<CreatorSubscription[]>([])
-  const [simulatedContributions, setSimulatedContributions] = useState<SimulatedContribution[]>([])
   const notificationSessionRef = useRef<string | null>(null)
 
   const navigate = useCallback((screen: Screen, id?: string | null) => {
@@ -216,7 +212,7 @@ export default function App() {
       }
       const current = routeFromPath(location.pathname, location.search)
       if (current.screen === 'register' || current.screen === 'home') {
-        const target = restored ? '/projects' : '/register'
+        const target = restored ? '/projects' : '/login'
         history.replaceState({}, '', target)
         setRoute(routeFromPath(location.pathname, location.search))
       }
@@ -261,7 +257,7 @@ export default function App() {
     }
     const privateScreens: Screen[] = ['creator-dashboard', 'sponsor-dashboard', 'subscriptions', 'transaction-history', 'supported-projects', 'create-campaign', 'settings', 'creator-profile']
     if (privateScreens.includes(route.screen) && !user) {
-      navigate('register')
+      navigate('login')
       return
     }
     if (route.screen === 'creator-dashboard' && user?.role !== 'creator') navigate('projects')
@@ -320,7 +316,7 @@ export default function App() {
       setDrafts([])
       setNotifications([])
       setNotificationsError('')
-      navigate('register')
+      navigate('login')
     }
   }
 
@@ -339,61 +335,6 @@ export default function App() {
     }
   }
 
-  function handleSimulatedContribution(contribution: SimulatedContribution) {
-    setSimulatedContributions(current => [contribution, ...current])
-    if (contribution.frequency === 'monthly') {
-      const nextCharge = new Date(contribution.createdAt)
-      nextCharge.setMonth(nextCharge.getMonth() + 1)
-      setSubscriptions(current => [{
-        id: `sim-sub-${crypto.randomUUID()}`,
-        creatorId: contribution.creatorId,
-        creatorName: [...campaigns, ...mine].find(campaign => campaign.id === contribution.campaignId)?.creator?.name,
-        amount: contribution.amount,
-        currency: contribution.currency,
-        status: 'ACTIVE',
-        nextChargeAt: nextCharge.toISOString(),
-        lastChargeAt: contribution.createdAt,
-        cancelledAt: null,
-        createdAt: contribution.createdAt,
-      }, ...current])
-    }
-    const updateCampaign = (campaign: CampaignSummary) => campaign.id !== contribution.campaignId ? campaign : {
-      ...campaign,
-      raisedAmount: (campaign.raisedAmount ?? campaign.progress?.raisedAmount ?? 0) + contribution.amount,
-      progress: campaign.progress ? {
-        ...campaign.progress,
-        raisedAmount: campaign.progress.raisedAmount + contribution.amount,
-        remainingAmount: Math.max(campaign.goalAmount - campaign.progress.raisedAmount - contribution.amount, 0),
-        percentage: Math.min(Math.round(((campaign.progress.raisedAmount + contribution.amount) / campaign.goalAmount) * 100), 100),
-        sponsorsCount: campaign.progress.sponsorsCount + 1,
-      } : undefined,
-    }
-    setCampaigns(current => current.map(updateCampaign))
-    setMine(current => current.map(updateCampaign))
-  }
-
-  function handleLocalSubscriptionCancelled(id: string, cancelledAt: string) {
-    setSubscriptions(current => current.map(subscription => subscription.id === id ? {
-      ...subscription,
-      status: 'CANCELLED',
-      nextChargeAt: null,
-      cancelledAt,
-    } : subscription))
-  }
-
-  function handleFailedCampaign(campaignId: string) {
-    const refundableCount = simulatedContributions.filter(item => item.campaignId === campaignId && item.receiptStatus === 'HELD').length
-    const refundedAt = new Date().toISOString()
-    setSimulatedContributions(current => current.map(item => item.campaignId === campaignId && item.receiptStatus === 'HELD' ? { ...item, receiptStatus: 'REFUNDED', refundedAt } : item))
-    const markFailed = (campaign: CampaignSummary) => campaign.id !== campaignId ? campaign : {
-      ...campaign,
-      status: 'FAILED' as const,
-      refundedContributionsCount: refundableCount,
-      progress: campaign.progress ? { ...campaign.progress, status: 'FAILED' as const, secondsRemaining: 0 } : undefined,
-    }
-    setCampaigns(current => current.map(markFailed))
-    setMine(current => current.map(markFailed))
-  }
 
   if (sessionLoading) {
     return <div className="min-h-screen bg-bg flex items-center justify-center text-sm font-semibold text-gray-600">Cargando sesión...</div>
@@ -469,7 +410,6 @@ export default function App() {
             navigate={navigate}
             onSelectReward={selectReward}
             user={user}
-            onCampaignFailed={handleFailedCampaign}
           />
         )}
         {route.screen === 'campaign-page' && (
@@ -481,7 +421,6 @@ export default function App() {
             navigate={navigate}
             onSelectReward={selectReward}
             user={user}
-            onCampaignFailed={handleFailedCampaign}
           />
         )}
         {route.screen === 'creator-dashboard' && user?.role === 'creator' && (
@@ -499,8 +438,6 @@ export default function App() {
           <SponsorDashboard
             user={user}
             navigate={navigate}
-            subscriptions={subscriptions}
-            simulatedContributions={simulatedContributions.filter(item => item.sponsorId === user.id)}
           />
         )}
         {route.screen === 'subscriptions' && user?.role === 'sponsor' && (
@@ -509,16 +446,13 @@ export default function App() {
             creators={[...campaigns, ...mine].flatMap(campaign =>
               campaign.creator ? [{ id: campaign.creator.id, name: campaign.creator.name }] : [],
             )}
-            localSubscriptions={subscriptions}
             navigate={navigate}
-            onLocalSubscriptionCancelled={handleLocalSubscriptionCancelled}
             onSessionExpired={handleSessionExpired}
           />
         )}
         {route.screen === 'transaction-history' && user?.role === 'sponsor' && (
           <TransactionHistory
             navigate={navigate}
-            simulatedContributions={simulatedContributions.filter(item => item.sponsorId === user.id)}
           />
         )}
         {route.screen === 'supported-projects' && user?.role === 'sponsor' && (
@@ -550,7 +484,6 @@ export default function App() {
             initialRewardId={route.rewardId}
             user={user}
             navigate={navigate}
-            onContribution={handleSimulatedContribution}
           />
         )}
       </main>

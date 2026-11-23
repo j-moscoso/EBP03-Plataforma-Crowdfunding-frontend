@@ -16,7 +16,7 @@ export const refundHistoryFixtures: Record<'held' | 'refunded' | 'successful', T
     receiptStatus: 'HELD',
     receiptStatusLabel: 'Retenido',
     contributionStatus: 'HELD',
-    paymentStatus: 'AUTHORIZED',
+    paymentStatus: 'SUCCEEDED',
     campaignDeadline: '2026-07-15T23:59:59.000Z',
   },
   refunded: {
@@ -44,7 +44,7 @@ export const refundHistoryFixtures: Record<'held' | 'refunded' | 'successful', T
     receiptStatus: 'SUCCESSFUL',
     receiptStatusLabel: 'Consolidado',
     contributionStatus: 'CONFIRMED',
-    paymentStatus: 'CONFIRMED',
+    paymentStatus: 'SUCCEEDED',
   },
 }
 

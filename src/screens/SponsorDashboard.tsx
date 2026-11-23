@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import type {
-  Screen,
-  SimulatedContribution,
   CreatorSubscription,
+  Screen,
   TransactionHistoryItem,
   User,
 } from '../types'
@@ -11,8 +10,6 @@ import { api, apiErrorMessage } from '../services/api'
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
   user: User
-  subscriptions: CreatorSubscription[]
-  simulatedContributions: SimulatedContribution[]
 }
 
 function amountLabel(amount: number, currency: string) {
@@ -30,22 +27,28 @@ function totalLabel(items: TransactionHistoryItem[]) {
   return amountLabel(items.reduce((sum, item) => sum + item.amount, 0), currency)
 }
 
-export default function SponsorDashboard({ navigate, user, subscriptions, simulatedContributions }: Props) {
+export default function SponsorDashboard({ navigate, user }: Props) {
   const [contributions, setContributions] = useState<TransactionHistoryItem[]>([])
+  const [subscriptions, setSubscriptions] = useState<CreatorSubscription[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
-    void api.contributions()
-      .then(response => { if (active) setContributions(response.content) })
+    void Promise.all([api.contributions(), api.subscriptions()])
+      .then(([contributionResponse, subscriptionResponse]) => {
+        if (!active) return
+        setContributions(contributionResponse.content)
+        setSubscriptions(subscriptionResponse.content)
+      })
       .catch(requestError => { if (active) setError(apiErrorMessage(requestError, 'No pudimos cargar tus aportes.')) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [])
 
-  const confirmed = contributions.filter(item => item.contributionStatus === 'CONFIRMED').length + simulatedContributions.length
-  const projects = new Set([...contributions.map(item => item.campaignId), ...simulatedContributions.map(item => item.campaignId)]).size
+  const confirmed = contributions.filter(item =>
+    item.contributionStatus === 'CONFIRMED' || item.contributionStatus === 'HELD').length
+  const projects = new Set(contributions.map(item => item.campaignId)).size
 
   return (
     <div className="min-h-screen bg-bg">
@@ -85,7 +88,7 @@ export default function SponsorDashboard({ navigate, user, subscriptions, simula
             <button type="button" onClick={() => navigate('transaction-history')} className="text-xs font-semibold text-primary hover:underline">Ver todos</button>
           </div>
           {error && <div className="m-6 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{error}</div>}
-          {loading ? <p className="py-16 text-center text-sm text-gray-500">Cargando aportes...</p> : contributions.length === 0 && simulatedContributions.length === 0 ? (
+          {loading ? <p className="py-16 text-center text-sm text-gray-500">Cargando aportes...</p> : contributions.length === 0 ? (
             <div className="py-16 text-center px-4">
               <h3 className="font-display font-700 text-gray-800">Aún no has realizado aportes</h3>
               <p className="text-sm text-gray-400 mt-1 mb-5">Explora campañas activas y apoya una idea.</p>
@@ -93,20 +96,6 @@ export default function SponsorDashboard({ navigate, user, subscriptions, simula
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {simulatedContributions.slice(0, 3).map(contribution => (
-                <article key={contribution.id} className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <button type="button" onClick={() => navigate('campaign-page', contribution.campaignId)} className="text-sm font-semibold text-gray-900 hover:text-primary text-left">{contribution.campaignTitle}</button>
-                    <p className="text-xs text-gray-400 mt-1">{new Date(contribution.createdAt).toLocaleString('es-ES')} · Aporte simulado</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs font-semibold rounded-full px-2.5 py-1 ${contribution.receiptStatus === 'REFUNDED' ? 'bg-slate-100 text-slate-700' : 'bg-yellow-50 text-yellow-700'}`}>
-                      {contribution.receiptStatus === 'REFUNDED' ? 'Reembolsado' : 'Retenido'}
-                    </span>
-                    <p className="font-display font-700 text-lg text-primary">{amountLabel(contribution.amount, contribution.currency)}</p>
-                  </div>
-                </article>
-              ))}
               {contributions.slice(0, 3).map(contribution => (
                 <article key={contribution.contributionId} className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
@@ -128,7 +117,7 @@ export default function SponsorDashboard({ navigate, user, subscriptions, simula
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-primary">Apoyo mensual</p>
               <h2 className="font-display font-800 text-xl text-gray-900 mt-1">Haz que tu impacto continúe</h2>
-              <p className="text-sm text-gray-500 mt-2">{subscriptions.filter(item => item.status === 'ACTIVE').length > 0 ? `Tienes ${subscriptions.filter(item => item.status === 'ACTIVE').length} suscripciones simuladas activas.` : 'Programa un aporte recurrente a los creadores que sigues.'}</p>
+              <p className="text-sm text-gray-500 mt-2">{subscriptions.filter(item => item.status === 'ACTIVE').length > 0 ? `Tienes ${subscriptions.filter(item => item.status === 'ACTIVE').length} suscripciones activas.` : 'Programa un aporte recurrente a los creadores que sigues.'}</p>
             </div>
             <button type="button" onClick={() => navigate('subscriptions')} className="shrink-0 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/30">Administrar suscripciones</button>
           </div>

@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   Campaign,
   CampaignComment,
+  CampaignFaqItem,
   CampaignUpdate,
   CampaignUpdateDto,
   CampaignUpdatePayload,
@@ -19,6 +20,7 @@ import type {
   Draft,
   DraftPayload,
   FundingModel,
+  FundingModelUpdateResponse,
   PageResponse,
   Notification,
   NotificationDto,
@@ -223,6 +225,7 @@ function normalizeNotification(notification: NotificationDto): Notification {
     title: notification.title,
     body: notification.body,
     campaignId: notification.campaignId,
+    contributionId: notification.contributionId ?? null,
     campaignUpdateId: notification.campaignUpdateId,
     createdAt: notification.createdAt,
     read: notification.readAt !== null,
@@ -369,11 +372,12 @@ export const api = {
     return normalizeCampaign(await request<Campaign>(`/api/campaigns/${encodeURIComponent(id)}`))
   },
   async updateCampaignFundingModel(id: string, fundingModel: FundingModel) {
-    return normalizeCampaign(
-      await request<Campaign>(`/api/campaigns/${encodeURIComponent(id)}/funding-model`, {
+    return request<FundingModelUpdateResponse>(
+      `/api/campaigns/${encodeURIComponent(id)}/funding-model`,
+      {
         method: 'PATCH',
         body: JSON.stringify({ fundingModel }),
-      }),
+      },
     )
   },
   campaignProgress: (id: string) =>
@@ -419,7 +423,7 @@ export const api = {
       method: 'PATCH',
     }),
   campaignFaq: (id: string, pageNumber = 0, pageSize = 20) =>
-    page<CampaignComment>(`/api/campaigns/${encodeURIComponent(id)}/faq?page=${pageNumber}&pageSize=${pageSize}`),
+    page<CampaignFaqItem>(`/api/campaigns/${encodeURIComponent(id)}/faq?page=${pageNumber}&pageSize=${pageSize}`),
   async notifications() {
     const result = await page<NotificationDto>('/api/notifications/me?page=0&pageSize=20&unreadOnly=false')
     return { ...result, content: result.content.map(normalizeNotification) }

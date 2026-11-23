@@ -21,7 +21,6 @@ interface Props {
   onSelectReward: (campaignId: string, rewardId: string) => void
   user: User | null
   campaignOverride?: Campaign
-  onCampaignFailed: (campaignId: string) => void
 }
 
 function Countdown({ initialSeconds }: { initialSeconds: number }) {
@@ -438,7 +437,7 @@ function CampaignWall({ campaign, user }: { campaign: Campaign; user: User | nul
 }
 
 export default function CampaignPage(props: Props) {
-  const { campaignId, campaigns, loading, error, navigate, user, campaignOverride, onCampaignFailed } = props
+  const { campaignId, campaigns, loading, error, navigate, user, campaignOverride } = props
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [detailLoading, setDetailLoading] = useState(Boolean(campaignId))
   const [detailError, setDetailError] = useState('')
@@ -463,18 +462,6 @@ export default function CampaignPage(props: Props) {
     if (campaignOverride?.id === campaignId) setCampaign(campaignOverride)
   }, [campaignId, campaignOverride])
 
-  useEffect(() => {
-    if (!campaign || campaign.status === 'FAILED' || campaign.fundingModel !== 'FIXED' || campaign.progress.raisedAmount >= campaign.goalAmount) return
-    const deadline = new Date(campaign.deadline).getTime()
-    if (!Number.isFinite(deadline) || deadline > Date.now()) return
-    onCampaignFailed(campaign.id)
-    setCampaign(current => current ? {
-      ...current,
-      status: 'FAILED',
-      progress: { ...current.progress, status: 'FAILED', secondsRemaining: 0 },
-    } : current)
-  }, [campaign?.id, campaign?.status, campaign?.deadline, campaign?.fundingModel, campaign?.goalAmount, campaign?.progress.raisedAmount])
-
   if (!campaignId) return <Projects campaigns={campaigns} loading={loading} error={error} navigate={navigate} />
   if (detailLoading) return <div className="min-h-screen bg-bg flex items-center justify-center text-sm font-semibold text-gray-600">Cargando campaña...</div>
   if (!campaign) return (
@@ -491,18 +478,7 @@ export default function CampaignPage(props: Props) {
   const model = fundingModelInfo(campaign.fundingModel)
   const sortedRewards = [...campaign.rewards].sort((a, b) => a.minimumAmount - b.minimumAmount)
   const isFailedAllOrNothing = campaign.status === 'FAILED' && campaign.fundingModel === 'FIXED' && campaign.progress.raisedAmount < campaign.goalAmount
-  const canSimulateFailure = campaign.fundingModel === 'FIXED' && campaign.status !== 'FAILED' && campaign.progress.raisedAmount < campaign.goalAmount && user?.role === 'creator' && (user.id === campaign.creator.id || campaign.currentUserIsCreator)
   const fundingModelLocked = campaign.fundingModelEditable === false || campaign.progress.sponsorsCount > 0
-  const activeCampaignId = campaign.id
-
-  function simulateFailure() {
-    onCampaignFailed(activeCampaignId)
-    setCampaign(current => current ? {
-      ...current,
-      status: 'FAILED',
-      progress: { ...current.progress, status: 'FAILED', secondsRemaining: 0 },
-    } : current)
-  }
   return (
     <div className="min-h-screen bg-bg">
       <button onClick={() => navigate('projects')} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 block text-sm text-gray-500 hover:text-primary">← Volver a explorar</button>
@@ -568,7 +544,6 @@ export default function CampaignPage(props: Props) {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tiempo restante</p>
               <Countdown initialSeconds={campaign.progress.secondsRemaining} />
               {!isFailedAllOrNothing && <button disabled={!canContribute} onClick={() => navigate('payment-flow', campaign.id)} className="w-full mt-6 bg-primary text-white rounded-xl py-3 text-sm font-semibold hover:bg-primary-hover disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed">{cta}</button>}
-              {canSimulateFailure && <button type="button" onClick={simulateFailure} className="w-full mt-3 border border-red-200 text-error rounded-xl py-2.5 text-xs font-semibold hover:bg-red-50">Simular cierre de campaña fallida</button>}
               {campaign.progress.percentage === 0 && <p className="text-center text-xs text-gray-400 mt-3">¡Sé el primero en apoyar este proyecto!</p>}
             </div>
             <section aria-labelledby="campaign-rewards-title">

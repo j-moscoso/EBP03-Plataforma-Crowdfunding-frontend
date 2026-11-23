@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Campaign, CampaignComment, FieldValidationError, PageResponse, User } from '../types'
+import type { Campaign, CampaignComment, CampaignFaqItem, FieldValidationError, PageResponse, User } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
 
 type Tab = 'information' | 'updates' | 'discussion' | 'faq'
@@ -40,8 +40,8 @@ function bodyError(details: unknown) {
   return fields.find(error => error.field === 'body')?.message
 }
 
-function Pagination({ response, loading, onPage }: {
-  response: PageResponse<CampaignComment>
+function Pagination<T>({ response, loading, onPage }: {
+  response: PageResponse<T>
   loading: boolean
   onPage: (page: number) => void
 }) {
@@ -60,7 +60,7 @@ function Pagination({ response, loading, onPage }: {
 export default function CampaignTabs({ campaign, user, information, updates, onLogin }: Props) {
   const [tab, setTab] = useState<Tab>(tabFromUrl)
   const [discussion, setDiscussion] = useState<PageResponse<CampaignComment> | null>(null)
-  const [faq, setFaq] = useState<PageResponse<CampaignComment> | null>(null)
+  const [faq, setFaq] = useState<PageResponse<CampaignFaqItem> | null>(null)
   const [discussionLoading, setDiscussionLoading] = useState(false)
   const [faqLoading, setFaqLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -400,12 +400,11 @@ export default function CampaignTabs({ campaign, user, information, updates, onL
             ) : (
               <div className="space-y-3">
                 {faq?.content.map(item => {
-                  const question = item.parentCommentId ? discussion?.content.find(comment => comment.id === item.parentCommentId) : null
                   return (
                     <article key={item.id} className="rounded-xl border border-gray-100 p-5">
                       <div className="flex flex-wrap items-center gap-2 mb-2"><span className="rounded-full bg-primary-light px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">Respuesta oficial</span><span className="text-xs text-gray-400">{new Date(item.createdAt).toLocaleDateString('es-ES')}</span></div>
-                      {question && <h3 className="font-display font-700 text-gray-900">{question.body}</h3>}
-                      <p className={`text-sm text-gray-600 leading-relaxed whitespace-pre-wrap ${question ? 'mt-2' : ''}`}>{item.body}</p>
+                      {item.question && <h3 className="font-display font-700 text-gray-900">{item.question.body}</h3>}
+                      <p className={`text-sm text-gray-600 leading-relaxed whitespace-pre-wrap ${item.question ? 'mt-2' : ''}`}>{item.answer?.body ?? item.body}</p>
                     </article>
                   )
                 })}
