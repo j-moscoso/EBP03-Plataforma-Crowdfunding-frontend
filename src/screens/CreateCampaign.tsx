@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Campaign, CampaignMediaType, Draft, DraftPayload, FundingModel, Screen, User } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
+import CampaignMedia from '../components/CampaignMedia'
 import {
   formatGoalInput,
   isValidIsoDate,
@@ -74,7 +75,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
       id: reward.id,
       title: reward.title,
       description: reward.description,
-      minimumAmount: String(reward.minimumAmount),
+      minimumAmount: formatGoalInput(String(reward.minimumAmount)),
       estimatedDeliveryDate: reward.estimatedDeliveryDate?.slice(0, 10) ?? '',
       quantity: reward.quantity == null ? '' : String(reward.quantity),
       unlimited: reward.quantity == null,
@@ -123,7 +124,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
       else if (reward.title.trim().length > 120) rewardErrors.title = 'El título no puede superar 120 caracteres'
       if (!reward.description.trim()) rewardErrors.description = 'La descripción es obligatoria'
       else if (reward.description.trim().length > rewardDescriptionLimit) rewardErrors.description = `La descripción no puede superar ${rewardDescriptionLimit} caracteres`
-      if (!validMoney(reward.minimumAmount)) rewardErrors.minimumAmount = 'El monto debe ser mayor a 0'
+      if (!validMoney(numericGoalValue(reward.minimumAmount))) rewardErrors.minimumAmount = 'El monto debe ser mayor a 0'
       if (!isValidIsoDate(reward.estimatedDeliveryDate)) rewardErrors.estimatedDeliveryDate = 'Ingresa una fecha válida'
       else if (reward.estimatedDeliveryDate < today) rewardErrors.estimatedDeliveryDate = 'La entrega no puede ser anterior a hoy'
       if (!reward.unlimited && (!/^\d+$/.test(reward.quantity) || Number(reward.quantity) <= 0)) {
@@ -149,7 +150,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
       rewards: rewards.map(reward => ({
         title: reward.title.trim(),
         description: reward.description.trim(),
-        minimumAmount: Number(reward.minimumAmount),
+        minimumAmount: Number(numericGoalValue(reward.minimumAmount)),
         estimatedDeliveryDate: reward.estimatedDeliveryDate,
         quantity: reward.unlimited ? null : Number(reward.quantity),
       })),
@@ -441,7 +442,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
                       </div>
                       <div>
                         <label htmlFor={`${reward.id}-amount`} className="block text-xs font-medium text-gray-600 mb-1">Monto mínimo *</label>
-                        <input id={`${reward.id}-amount`} inputMode="decimal" value={reward.minimumAmount} onChange={event => updateReward(reward.id, 'minimumAmount', event.target.value)} aria-invalid={Boolean(amountField.error)} aria-describedby={amountField.describedBy} className={input(amountField.error)} placeholder="25.00" />
+                        <input id={`${reward.id}-amount`} inputMode="decimal" value={reward.minimumAmount} onChange={event => updateReward(reward.id, 'minimumAmount', formatGoalInput(event.target.value))} aria-invalid={Boolean(amountField.error)} aria-describedby={amountField.describedBy} className={input(amountField.error)} placeholder="25.00" />
                         {amountField.error && <p id={amountField.errorId} className="text-xs text-error mt-1">{amountField.error}</p>}
                       </div>
                       <div className="sm:col-span-2">
@@ -500,9 +501,12 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
             </div>
             {mediaUrl && (
               <div className="mt-4 h-44 bg-gray-100 rounded-xl overflow-hidden">
-                {mediaType === 'IMAGE'
-                  ? <img src={mediaUrl} alt="Vista previa de la campaña" className="w-full h-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} />
-                  : <video src={mediaUrl} controls preload="metadata" className="w-full h-full bg-gray-900" aria-label="Vista previa del video de campaña" />}
+                <CampaignMedia
+                  url={mediaUrl}
+                  mediaType={mediaType}
+                  title="la campaña"
+                  className="w-full h-full"
+                />
               </div>
             )}
           </section>

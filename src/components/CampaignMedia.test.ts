@@ -14,6 +14,10 @@ describe('resolveVideoSource', () => {
       kind: 'embed',
       url: 'https://www.youtube-nocookie.com/embed/abc_123',
     })
+    expect(resolveVideoSource('https://www.youtube.com/watch?v=abc_123&t=15')).toEqual({
+      kind: 'embed',
+      url: 'https://www.youtube-nocookie.com/embed/abc_123',
+    })
     expect(resolveVideoSource('https://vimeo.com/12345')).toEqual({
       kind: 'embed',
       url: 'https://player.vimeo.com/video/12345',

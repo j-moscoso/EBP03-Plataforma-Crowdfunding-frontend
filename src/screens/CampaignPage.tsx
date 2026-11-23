@@ -11,6 +11,7 @@ import type {
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
 import CampaignTabs from '../components/CampaignTabs'
+import CampaignMedia from '../components/CampaignMedia'
 
 interface Props {
   campaignId: string | null
@@ -98,9 +99,12 @@ function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaign
               const model = fundingModelInfo(campaign.fundingModel)
               return (
               <article key={campaign.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                <div className="h-48 bg-gray-100 overflow-hidden">
-                  {campaign.mediaUrl ? <img src={campaign.mediaUrl} alt={campaign.title} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200" />}
-                </div>
+                <CampaignMedia
+                  url={campaign.mediaUrl}
+                  mediaType={campaign.mediaType}
+                  title={campaign.title}
+                  className="h-48"
+                />
                 <div className="p-5">
                   <div className="flex flex-wrap gap-2">
                     <span className="text-xs font-semibold text-primary bg-primary-light px-2.5 py-1 rounded-full">{campaign.category}</span>

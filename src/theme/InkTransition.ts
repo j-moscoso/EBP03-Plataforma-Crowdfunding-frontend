@@ -33,6 +33,7 @@ export class InkTransition {
   private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
   private readonly state = { progress: 0, time: 0 }
   private readonly resizeObserver: ResizeObserver | null
+  private readonly contentObserver: MutationObserver | null
   private tween: gsap.core.Tween | null = null
   private fade: gsap.core.Tween | null = null
   private frame: ActiveFrame | null = null
@@ -53,6 +54,7 @@ export class InkTransition {
 
     if (!this.renderer) {
       this.resizeObserver = null
+      this.contentObserver = null
       return
     }
 
@@ -70,6 +72,13 @@ export class InkTransition {
       ? null
       : new ResizeObserver(() => this.scheduleCapture(RESIZE_DEBOUNCE_MS))
     this.resizeObserver?.observe(document.body)
+    const appRoot = document.getElementById('root')
+    if (typeof MutationObserver === 'undefined' || !appRoot) {
+      this.contentObserver = null
+    } else {
+      this.contentObserver = new MutationObserver(this.handleContentChange)
+      this.contentObserver.observe(appRoot, { childList: true, subtree: true })
+    }
     void document.fonts.ready.then(() => this.scheduleCapture(0))
   }
 
@@ -151,6 +160,7 @@ export class InkTransition {
     document.removeEventListener('change', this.handleContentChange)
     this.reducedMotion.removeEventListener('change', this.handleMotionChange)
     this.resizeObserver?.disconnect()
+    this.contentObserver?.disconnect()
   }
 
   private readonly handleResize = () => {

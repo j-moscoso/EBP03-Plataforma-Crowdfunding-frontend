@@ -14,6 +14,12 @@ describe('campaign form values', () => {
     expect(numericGoalValue('1,500,000.25')).toBe('1500000.25')
   })
 
+  it('formats support and reward amounts and removes grouping separators for API values', () => {
+    const formatted = formatGoalInput('2500000.50')
+    expect(formatted).toBe('2,500,000.50')
+    expect(numericGoalValue(formatted)).toBe('2500000.50')
+  })
+
   it('uses the local date for date inputs', () => {
     expect(localDateInputValue(new Date(2026, 2, 4, 23, 59))).toBe('2026-03-04')
   })
