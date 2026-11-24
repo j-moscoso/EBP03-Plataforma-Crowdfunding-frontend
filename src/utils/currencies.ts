@@ -1,9 +1,9 @@
 export const supportedCurrencies = [
-  { code: 'USD', flag: '🇺🇸', label: 'Dólar estadounidense' },
-  { code: 'EUR', flag: '🇪🇺', label: 'Euro' },
-  { code: 'COP', flag: '🇨🇴', label: 'Peso colombiano' },
-  { code: 'MXN', flag: '🇲🇽', label: 'Peso mexicano' },
-  { code: 'ARS', flag: '🇦🇷', label: 'Peso argentino' },
-  { code: 'CLP', flag: '🇨🇱', label: 'Peso chileno' },
-  { code: 'PEN', flag: '🇵🇪', label: 'Sol peruano' },
+  { code: 'USD', country: 'us', label: 'Dólar estadounidense' },
+  { code: 'EUR', country: 'eu', label: 'Euro' },
+  { code: 'COP', country: 'co', label: 'Peso colombiano' },
+  { code: 'MXN', country: 'mx', label: 'Peso mexicano' },
+  { code: 'ARS', country: 'ar', label: 'Peso argentino' },
+  { code: 'CLP', country: 'cl', label: 'Peso chileno' },
+  { code: 'PEN', country: 'pe', label: 'Sol peruano' },
 ] as const

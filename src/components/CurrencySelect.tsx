@@ -12,6 +12,22 @@ interface Props {
   ariaLabel?: string
 }
 
+function CurrencyFlag({ country }: { country: string }) {
+  return (
+    <img
+      src={`https://flagcdn.com/w40/${country}.png`}
+      srcSet={`https://flagcdn.com/w80/${country}.png 2x`}
+      width={24}
+      height={18}
+      alt=""
+      aria-hidden="true"
+      crossOrigin="anonymous"
+      loading="lazy"
+      className="shrink-0 rounded-[2px] object-cover"
+    />
+  )
+}
+
 export default function CurrencySelect({
   id,
   value,
@@ -64,7 +80,7 @@ export default function CurrencySelect({
         className={`flex items-center justify-between gap-3 ${className}`}
       >
         <span className="flex items-center gap-2 min-w-0">
-          <span className="shrink-0 text-xl leading-none" aria-hidden="true">{selected.flag}</span>
+          <CurrencyFlag country={selected.country} />
           <span className="min-w-0 text-left leading-tight">{selected.code} — {selected.label}</span>
         </span>
         <span className="shrink-0 text-xs text-gray-400" aria-hidden="true">{open ? '▲' : '▼'}</span>
@@ -85,7 +101,7 @@ export default function CurrencySelect({
               onClick={() => choose(item.code)}
               className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-primary-light ${item.code === value ? 'bg-primary-light/60 text-primary font-semibold' : 'text-gray-700'}`}
             >
-              <span className="shrink-0 text-xl leading-none" aria-hidden="true">{item.flag}</span>
+              <CurrencyFlag country={item.country} />
               <span className="whitespace-normal">{item.code} — {item.label}</span>
             </button>
           ))}
