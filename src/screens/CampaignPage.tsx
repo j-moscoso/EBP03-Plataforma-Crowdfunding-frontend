@@ -567,7 +567,7 @@ export default function CampaignPage(props: Props) {
     <div className="min-h-screen bg-bg">
       <button onClick={() => navigate('projects')} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 block text-sm text-gray-500 hover:text-primary">← Volver a explorar</button>
       {campaign.mediaUrl ? (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5"><img src={campaign.mediaUrl} alt={campaign.title} className="w-full h-64 sm:h-96 object-cover rounded-2xl bg-gray-100" /></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5"><CampaignMedia url={campaign.mediaUrl} mediaType={campaign.mediaType} title={campaign.title} className="w-full h-64 sm:h-96 rounded-2xl" /></div>
       ) : <div className="max-w-7xl mx-auto h-20" />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {isFailedAllOrNothing && (

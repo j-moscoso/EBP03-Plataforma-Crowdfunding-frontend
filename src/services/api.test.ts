@@ -43,7 +43,7 @@ describe('frontend API integration contracts', () => {
         },
       }],
       page: 0,
-      pageSize: 10,
+      pageSize: 50,
       totalElements: 1,
       totalPages: 1,
     }))
@@ -57,7 +57,52 @@ describe('frontend API integration contracts', () => {
       progress: { raisedAmount: 25000, percentage: 25 },
     })
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/campaigns?page=0&pageSize=10&status=ACTIVE'),
+      expect.stringContaining('/api/campaigns?page=0&pageSize=50&status=ACTIVE'),
+      expect.objectContaining({ credentials: 'include' }),
+    )
+  })
+
+  it('loads all pages of public campaign summaries', async () => {
+    const firstCampaign = {
+      id: 'campaign-summary-1',
+      title: 'Huerta comunitaria',
+      category: 'COMMUNITY',
+      mediaUrl: null,
+      status: 'ACTIVE',
+      goalAmount: 100000,
+      fundingModel: 'FIXED',
+      currency: 'COP',
+    }
+    const secondCampaign = {
+      ...firstCampaign,
+      id: 'campaign-summary-2',
+      title: 'Energía limpia',
+    }
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({
+        content: [firstCampaign],
+        page: 0,
+        pageSize: 50,
+        totalElements: 51,
+        totalPages: 2,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        content: [secondCampaign],
+        page: 1,
+        pageSize: 50,
+        totalElements: 51,
+        totalPages: 2,
+      }))
+
+    const response = await api.campaigns()
+
+    expect(response.content.map(campaign => campaign.id)).toEqual([
+      'campaign-summary-1',
+      'campaign-summary-2',
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      expect.stringContaining('/api/campaigns?page=1&pageSize=50&status=ACTIVE'),
       expect.objectContaining({ credentials: 'include' }),
     )
   })

@@ -361,8 +361,16 @@ export const api = {
     )
   },
   async campaigns() {
-    const result = await page<CampaignSummary>('/api/campaigns?page=0&pageSize=10&status=ACTIVE')
-    return { ...result, content: result.content.map(normalizeCampaignSummary) }
+    const pageSize = 50
+    const result = await page<CampaignSummary>(`/api/campaigns?page=0&pageSize=${pageSize}&status=ACTIVE`)
+    const content = [...result.content]
+    for (let pageNumber = 1; pageNumber < result.totalPages; pageNumber += 1) {
+      const nextPage = await page<CampaignSummary>(
+        `/api/campaigns?page=${pageNumber}&pageSize=${pageSize}&status=ACTIVE`,
+      )
+      content.push(...nextPage.content)
+    }
+    return { ...result, content: content.map(normalizeCampaignSummary) }
   },
   async campaignsMine() {
     const result = await page<CampaignSummary>('/api/campaigns/mine?page=0&pageSize=10')

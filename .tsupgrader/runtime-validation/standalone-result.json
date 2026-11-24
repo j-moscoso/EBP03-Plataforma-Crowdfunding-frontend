@@ -1,8 +1,8 @@
 {
-  "planHash": "6a083df2db5045886344f52b4450257e2ccc6d98c62cd69ff5bf42fe4b6da5d9",
+  "planHash": "363044343d88c3425881c335c938f32553bcbdda5cb2801ae964a200eef9a3e5",
   "phase": "standalone",
-  "recordedAtUtc": "2026-10-18T03:41:46.6093472Z",
-  "retryCount": 3,
+  "recordedAtUtc": "2026-11-24T04:12:40.2327790Z",
+  "retryCount": 0,
   "resetBaseline": false,
   "complete": true,
   "result": {
@@ -19,8 +19,8 @@
         "skipped": false,
         "skippedReason": null,
         "exitCode": 0,
-        "outputSample": "",
-        "durationMs": 8350
+        "outputSample": "npm warn Unknown env config \u0022scripts-prepend-node-path\u0022. This will stop working in the next major version of npm. See \u0060npm help npmrc\u0060 for supported config options.\r\n",
+        "durationMs": 21058
       },
       {
         "name": "production-build",
@@ -31,8 +31,8 @@
         "skipped": false,
         "skippedReason": null,
         "exitCode": 0,
-        "outputSample": "\r\n\u003E figma-make-app@1.0.0 build\r\n\u003E vite build\r\n\r\n\u001B[33m(!) Your Vite config uses features that are unsupported by \u0060configLoader: \u0027native\u0027\u0060, which is planned to become the default in a future major version of Vite:\r\n  - \u0060__dirname\u0060 (vite.config.ts:45:27). Use \u0060import.meta.dirname\u0060 instead\r\n  - JSON import \u0022./.figma/make/site.json\u0022 without import attributes (vite.config.ts:9:31). Add \u0060with { type: \u0027json\u0027 }\u0060\r\nSet \u0060VITE_CONFIG_NATIVE_IGNORE_WARNING=true\u0060 to suppress this warning.\u001B[39m\r\n\u001B[36mvite v8.3.0 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\ntransforming...\r\n\u2713 34 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                   0.49 kB \u2502 gzip:   0.30 kB\r\ndist/assets/index-B7Mu0cAw.css   34.17 kB \u2502 gzip:   7.21 kB\r\ndist/assets/index-Wv0muOf-.js   373.84 kB \u2502 gzip: 100.23 kB\r\n\r\n\u001B[32m\u2713 built in 2.79s\u001B[39m\r\n",
-        "durationMs": 4928
+        "outputSample": "npm warn Unknown env config \u0022scripts-prepend-node-path\u0022. This will stop working in the next major version of npm. See \u0060npm help npmrc\u0060 for supported config options.\r\n\r\n\u003E figma-make-app@1.0.0 build\r\n\u003E vite build\r\n\r\n\u001B[36mvite v8.0.5 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\n\u001B[2K\r\ntransforming...\u2713 53 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                        0.49 kB \u2502 gzip:   0.30 kB\r\ndist/assets/index-QWYT__KG.css        45.33 kB \u2502 gzip:   9.14 kB\r\ndist/assets/html2canvas-7SfS0rjB.js  199.56 kB \u2502 gzip:  46.78 kB\r\ndist/assets/index-APWZKBEb.js        508.63 kB \u2502 gzip: 144.82 kB\r\n\r\n\u001B[32m\u2713 built in 1.97s\u001B[39m\r\n\u001B[33m[plugin builtin:vite-reporter] \r\n(!) Some chunks are larger than 500 kB after minification. Consider:\r\n- Using dynamic import() to code-split the application\r\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\r\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001B[39m\r\n",
+        "durationMs": 6431
       },
       {
         "name": "tests-pass",
@@ -43,13 +43,13 @@
         "skipped": false,
         "skippedReason": null,
         "exitCode": 0,
-        "outputSample": "\r\n\u003E figma-make-app@1.0.0 test\r\n\u003E vitest run\r\n\r\n\u001B[33m(!) Your Vite config uses features that are unsupported by \u0060configLoader: \u0027native\u0027\u0060, which is planned to become the default in a future major version of Vite:\r\n  - \u0060__dirname\u0060 (vite.config.ts:45:27). Use \u0060import.meta.dirname\u0060 instead\r\n  - JSON import \u0022./.figma/make/site.json\u0022 without import attributes (vite.config.ts:9:31). Add \u0060with { type: \u0027json\u0027 }\u0060\r\nSet \u0060VITE_CONFIG_NATIVE_IGNORE_WARNING=true\u0060 to suppress this warning.\u001B[39m\r\n\r\n RUN  v4.1.12 C:/Users/SAMUEL/OneDrive/Documentos/ProyectosUdea/FabricaEscuela-EBP03-2026/EPB03-Plataforma-Crowdfunding-frontend/EBP03-Plataforma-Crowdfunding-frontend\r\n\r\n\r\n Test Files  2 passed (2)\r\n      Tests  18 passed (18)\r\n   Start at  22:41:45\r\n   Duration  1.18s (transform 255ms, setup 0ms, import 367ms, tests 101ms, environment 0ms)\r\n\r\n",
-        "durationMs": 3894,
+        "outputSample": "npm warn Unknown env config \u0022scripts-prepend-node-path\u0022. This will stop working in the next major version of npm. See \u0060npm help npmrc\u0060 for supported config options.\r\n\r\n\u003E figma-make-app@1.0.0 test\r\n\u003E vitest run\r\n\r\n\r\n RUN  v4.1.12 C:/Users/ASUS/Documents/GitHub/EBP03-Plataforma-Crowdfunding-frontend\r\n\r\n\r\n Test Files  3 passed (3)\r\n      Tests  25 passed (25)\r\n   Start at  23:12:33\r\n   Duration  1.50s (transform 999ms, setup 0ms, import 1.45s, tests 146ms, environment 1ms)\r\n\r\n",
+        "durationMs": 6599,
         "testResults": {
           "testFramework": "vitest",
           "runnerDetectedFrom": "package_json",
-          "testsTotal": 18,
-          "testsPassed": 18,
+          "testsTotal": 25,
+          "testsPassed": 25,
           "testsFailed": 0,
           "testsSkipped": 0,
           "parseFailed": false
@@ -64,51 +64,87 @@
         "skipped": false,
         "skippedReason": null,
         "exitCode": null,
-        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\r\n\u003Chtml lang=\u0022en\u0022\u003E\r\n  \u003Chead\u003E\r\n    \r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\r\n    \u003Ctitle\u003EFigma Make App\u003C/title\u003E\r\n    \r\n    \u003Cmeta property=\u0022og:title\u0022 content=\u0022Figma Make App\u0022\u003E\n    \u003Cscript type=\u0022module\u0022 crossorigin src=\u0022/assets/index-Wv0muOf-.js\u0022\u003E\u003C/script\u003E\n    \u003Clink rel=\u0022stylesheet\u0022 crossorigin href=\u0022/assets/index-B7Mu0cAw.css\u0022\u003E\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \r\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\r\r\n    \r\n  \u003C/body\u003E\r\n\u003C/html\u003E\r\n",
-        "durationMs": 87
+        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\r\n\u003Chtml lang=\u0022en\u0022\u003E\r\n  \u003Chead\u003E\r\n    \r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\r\n    \u003Ctitle\u003EFigma Make App\u003C/title\u003E\r\n    \r\n    \u003Cmeta property=\u0022og:title\u0022 content=\u0022Figma Make App\u0022\u003E\n    \u003Cscript type=\u0022module\u0022 crossorigin src=\u0022/assets/index-APWZKBEb.js\u0022\u003E\u003C/script\u003E\n    \u003Clink rel=\u0022stylesheet\u0022 crossorigin href=\u0022/assets/index-QWYT__KG.css\u0022\u003E\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \r\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\r\r\n    \r\n  \u003C/body\u003E\r\n\u003C/html\u003E\r\n\n--- server output ---\nnpm warn Unknown env config \u0022scripts-prepend-node-path\u0022. This will stop working in the next major version of npm. See \u0060npm help npmrc\u0060 for supported config options.\r\n\r\n\u003E figma-make-app@1.0.0 preview\r\n\u003E vite preview --host 127.0.0.1 --port 5187 --strictPort\r\n\r\n  \u001B[32m\u279C\u001B[39m  \u001B[1mLocal\u001B[22m:   \u001B[36mhttp://127.0.0.1:\u001B[1m5187\u001B[22m/\u001B[39m\r\n",
+        "durationMs": 4804
       }
     ],
     "executions": [
       {
         "source": "typescript-check",
-        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
         "args": [
           "exec",
           "--",
           "tsc",
           "--noEmit"
         ],
-        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
-        "platform": "win32"
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.20.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.19.0",
+        "cleanup": {
+          "RootProcessId": 10892,
+          "Completed": true,
+          "ProcessesObserved": 7,
+          "ProcessesTerminated": 0,
+          "Failure": null
+        }
       },
       {
         "source": "production-build",
-        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
         "args": [
           "run",
           "build"
         ],
-        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
-        "platform": "win32"
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.20.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.19.0",
+        "cleanup": {
+          "RootProcessId": 27772,
+          "Completed": true,
+          "ProcessesObserved": 9,
+          "ProcessesTerminated": 1,
+          "Failure": null
+        }
       },
       {
         "source": "tests-pass",
-        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
         "args": [
           "test"
         ],
-        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
-        "platform": "win32"
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.20.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.19.0",
+        "cleanup": {
+          "RootProcessId": 5536,
+          "Completed": true,
+          "ProcessesObserved": 12,
+          "ProcessesTerminated": 1,
+          "Failure": null
+        }
       },
       {
         "source": "spa-project-route",
-        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
         "args": [
           "run",
           "preview",
@@ -119,10 +155,22 @@
           "5187",
           "--strictPort"
         ],
-        "cwd": "C:\\Users\\SAMUEL\\OneDrive\\Documentos\\ProyectosUdea\\FabricaEscuela-EBP03-2026\\EPB03-Plataforma-Crowdfunding-frontend\\EBP03-Plataforma-Crowdfunding-frontend",
+        "cwd": "C:\\Users\\ASUS\\Documents\\GitHub\\EBP03-Plataforma-Crowdfunding-frontend",
         "env": {},
         "prependPath": [],
-        "platform": "win32"
+        "platform": "win32",
+        "nodeExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "nodeVersion": "v24.20.0",
+        "packageManager": "npm",
+        "packageManagerExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+        "packageManagerVersion": "11.19.0",
+        "cleanup": {
+          "RootProcessId": 4648,
+          "Completed": true,
+          "ProcessesObserved": 9,
+          "ProcessesTerminated": 5,
+          "Failure": null
+        }
       }
     ]
   }

@@ -64,17 +64,17 @@ export default function CurrencySelect({
         className={`flex items-center justify-between gap-3 ${className}`}
       >
         <span className="flex items-center gap-2 min-w-0">
-          <span className="text-xl leading-none" aria-hidden="true">{selected.flag}</span>
-          <span className="truncate">{selected.code} — {selected.label}</span>
+          <span className="shrink-0 text-xl leading-none" aria-hidden="true">{selected.flag}</span>
+          <span className="min-w-0 text-left leading-tight">{selected.code} — {selected.label}</span>
         </span>
-        <span className="text-xs text-gray-400" aria-hidden="true">{open ? '▲' : '▼'}</span>
+        <span className="shrink-0 text-xs text-gray-400" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
         <div
           role="listbox"
           aria-label="Monedas disponibles"
-          className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-gray-200 bg-surface py-1 shadow-lg"
+          className="absolute z-30 mt-1 max-h-64 w-max min-w-[18rem] max-w-[calc(100vw-2rem)] overflow-auto rounded-xl border border-gray-200 bg-surface py-1 shadow-lg"
         >
           {supportedCurrencies.map(item => (
             <button
@@ -85,8 +85,8 @@ export default function CurrencySelect({
               onClick={() => choose(item.code)}
               className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-primary-light ${item.code === value ? 'bg-primary-light/60 text-primary font-semibold' : 'text-gray-700'}`}
             >
-              <span className="text-xl leading-none" aria-hidden="true">{item.flag}</span>
-              <span className="truncate">{item.code} — {item.label}</span>
+              <span className="shrink-0 text-xl leading-none" aria-hidden="true">{item.flag}</span>
+              <span className="whitespace-normal">{item.code} — {item.label}</span>
             </button>
           ))}
         </div>
