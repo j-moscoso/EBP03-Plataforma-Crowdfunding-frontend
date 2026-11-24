@@ -1,6 +1,6 @@
 export const supportedCurrencies = [
   { code: 'USD', country: 'us', label: 'Dólar estadounidense' },
-  { code: 'EUR', country: 'eu', label: 'Euro' },
+  { code: 'EUR', country: 'es', label: 'Euro' },
   { code: 'COP', country: 'co', label: 'Peso colombiano' },
   { code: 'MXN', country: 'mx', label: 'Peso mexicano' },
   { code: 'ARS', country: 'ar', label: 'Peso argentino' },
