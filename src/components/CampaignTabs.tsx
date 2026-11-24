@@ -364,7 +364,7 @@ export default function CampaignTabs({ campaign, user, information, updates, onL
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-gray-900">{reply.authorName}</p>{reply.isOfficialAnswer && <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Respuesta oficial</span>}{reply.isFaq && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">En FAQ</span>}<span className="text-xs text-gray-400">{new Date(reply.createdAt).toLocaleString('es-ES')}</span></div>
                               <p className="text-sm text-gray-600 whitespace-pre-wrap mt-2">{reply.body}</p>
-                              {isCreator && !forbidden && reply.isOfficialAnswer && !reply.isFaq && <button type="button" disabled={convertingId === reply.id} onClick={() => void convertToFaq(reply)} className="min-h-11 mt-2 text-xs font-semibold text-primary disabled:text-gray-300">{convertingId === reply.id ? 'Convirtiendo...' : 'Convertir a FAQ'}</button>}
+                              {isCreator && !forbidden && !reply.isFaq && <button type="button" disabled={convertingId === reply.id} onClick={() => void convertToFaq(reply)} className="min-h-11 mt-2 text-xs font-semibold text-primary disabled:text-gray-300">{convertingId === reply.id ? 'Convirtiendo...' : 'Convertir a FAQ'}</button>}
                             </div>
                           </div>
                         </div>
