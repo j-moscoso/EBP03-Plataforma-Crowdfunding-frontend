@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Campaign, CampaignMediaType, Draft, DraftPayload, FundingModel, Screen, User } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
 import CampaignMedia from '../components/CampaignMedia'
+import CurrencySelect from '../components/CurrencySelect'
 import {
   formatGoalInput,
   isValidIsoDate,
@@ -301,9 +302,12 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
               <div><label className="block text-sm font-medium mb-1.5">Categoría *</label><select value={category} onChange={event => setCategory(event.target.value)} className={input(errors.category)}><option value="">Seleccionar...</option>{categories.map(item => <option key={item}>{item}</option>)}</select>{errors.category && <p className="text-xs text-error mt-1">{errors.category}</p>}</div>
               <div>
                 <label className="block text-sm font-medium mb-1.5">Moneda *</label>
-                <select value={currency} onChange={event => { setCurrency(event.target.value); setErrors(current => ({ ...current, currency: undefined })) }} className={input(errors.currency)}>
-                  {supportedCurrencies.map(item => <option key={item.code} value={item.code}>{item.flag} {item.code} — {item.label}</option>)}
-                </select>
+                <CurrencySelect
+                  value={currency}
+                  onChange={value => { setCurrency(value); setErrors(current => ({ ...current, currency: undefined })) }}
+                  className={input(errors.currency)}
+                  invalid={Boolean(errors.currency)}
+                />
                 {errors.currency && <p className="text-xs text-error mt-1">{errors.currency}</p>}
               </div>
             </div>

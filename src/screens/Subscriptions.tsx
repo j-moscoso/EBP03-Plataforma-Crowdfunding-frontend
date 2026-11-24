@@ -9,6 +9,7 @@ import type {
 import { ApiError, api, apiErrorMessage } from '../services/api'
 import { formatGoalInput, numericGoalValue } from '../utils/campaignForm'
 import { supportedCurrencies } from '../utils/currencies'
+import CurrencySelect from '../components/CurrencySelect'
 
 interface Props {
   user: User
@@ -338,9 +339,15 @@ export default function Subscriptions({
                   </div>
                   <div>
                     <label htmlFor="subscription-currency" className="block text-sm font-medium text-gray-700 mb-1.5">Moneda</label>
-                    <select id="subscription-currency" value={currency} onChange={event => { setCurrency(event.target.value); setErrors(current => ({ ...current, currency: undefined })) }} disabled={creating} aria-invalid={Boolean(errors.currency)} aria-describedby={errors.currency ? 'subscription-currency-error' : undefined} className={inputClass(errors.currency)}>
-                      {supportedCurrencies.map(item => <option key={item.code} value={item.code}>{item.flag} {item.code} — {item.label}</option>)}
-                    </select>
+                    <CurrencySelect
+                      id="subscription-currency"
+                      value={currency}
+                      onChange={value => { setCurrency(value); setErrors(current => ({ ...current, currency: undefined })) }}
+                      disabled={creating}
+                      invalid={Boolean(errors.currency)}
+                      describedBy={errors.currency ? 'subscription-currency-error' : undefined}
+                      className={inputClass(errors.currency)}
+                    />
                     {errors.currency && <p id="subscription-currency-error" className="text-xs text-error mt-1">{errors.currency}</p>}
                   </div>
                   <div>
