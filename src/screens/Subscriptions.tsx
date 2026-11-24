@@ -7,6 +7,8 @@ import type {
   User,
 } from '../types'
 import { ApiError, api, apiErrorMessage } from '../services/api'
+import { formatGoalInput, numericGoalValue } from '../utils/campaignForm'
+import { supportedCurrencies } from '../utils/currencies'
 
 interface Props {
   user: User
@@ -22,8 +24,11 @@ interface FormErrors {
   paymentMethodId?: string
 }
 
-const validAmount = (value: string) => /^\d+(?:\.\d{1,2})?$/.test(value) && Number(value) > 0
-const validCurrency = (value: string) => /^[A-Z]{3}$/.test(value)
+const validAmount = (value: string) => {
+  const numericValue = numericGoalValue(value)
+  return /^\d+(?:\.\d{1,2})?$/.test(numericValue) && Number(numericValue) > 0
+}
+const validCurrency = (value: string) => supportedCurrencies.some(item => item.code === value)
 
 function amountLabel(amount: number, currency: string) {
   try {
@@ -140,7 +145,7 @@ export default function Subscriptions({
     if (!creatorId) next.creatorId = 'Selecciona un creador.'
     else if (creatorId === user.id) next.creatorId = 'El creador debe ser distinto de tu usuario.'
     if (!validAmount(amount)) next.amount = 'Ingresa un monto mayor a cero con máximo dos decimales.'
-    if (!validCurrency(currency)) next.currency = 'Ingresa una moneda válida de tres letras.'
+    if (!validCurrency(currency)) next.currency = 'Selecciona una moneda válida.'
     if (!paymentMethodId) next.paymentMethodId = 'Selecciona un método de pago.'
     setErrors(next)
     return Object.keys(next).length === 0
@@ -155,7 +160,7 @@ export default function Subscriptions({
     try {
       const subscription = await api.createSubscription({
         creatorId,
-        amount: Number(amount),
+        amount: Number(numericGoalValue(amount)),
         currency,
         paymentMethodId,
       })
@@ -278,7 +283,7 @@ export default function Subscriptions({
                       </span>
                     </div>
                     <div className="mt-4 grid sm:grid-cols-2 gap-2 text-xs text-gray-500">
-                      <p>Próximo cobro: <strong className="text-gray-700">{dateLabel(subscription.nextChargeAt)}</strong></p>
+                      <p>Próximo cobro: <strong className="text-gray-700">{subscription.status === 'CANCELLED' ? 'No programado' : dateLabel(subscription.nextChargeAt)}</strong></p>
                       {subscription.cancelledAt && <p>Cancelada el: <strong className="text-gray-700">{dateLabel(subscription.cancelledAt)}</strong></p>}
                     </div>
                     {subscription.status === 'ACTIVE' && (
@@ -328,12 +333,14 @@ export default function Subscriptions({
                   </div>
                   <div>
                     <label htmlFor="subscription-amount" className="block text-sm font-medium text-gray-700 mb-1.5">Monto mensual</label>
-                    <input id="subscription-amount" inputMode="decimal" value={amount} onChange={event => { setAmount(event.target.value); setErrors(current => ({ ...current, amount: undefined })) }} disabled={creating} aria-invalid={Boolean(errors.amount)} aria-describedby={errors.amount ? 'subscription-amount-error' : undefined} className={inputClass(errors.amount)} placeholder="25.00" />
+                    <input id="subscription-amount" inputMode="decimal" value={amount} onChange={event => { setAmount(formatGoalInput(event.target.value)); setErrors(current => ({ ...current, amount: undefined })) }} disabled={creating} aria-invalid={Boolean(errors.amount)} aria-describedby={errors.amount ? 'subscription-amount-error' : undefined} className={inputClass(errors.amount)} placeholder="25.00" />
                     {errors.amount && <p id="subscription-amount-error" className="text-xs text-error mt-1">{errors.amount}</p>}
                   </div>
                   <div>
                     <label htmlFor="subscription-currency" className="block text-sm font-medium text-gray-700 mb-1.5">Moneda</label>
-                    <input id="subscription-currency" value={currency} maxLength={3} onChange={event => { setCurrency(event.target.value.toUpperCase()); setErrors(current => ({ ...current, currency: undefined })) }} disabled={creating} aria-invalid={Boolean(errors.currency)} aria-describedby={errors.currency ? 'subscription-currency-error' : undefined} className={inputClass(errors.currency)} />
+                    <select id="subscription-currency" value={currency} onChange={event => { setCurrency(event.target.value); setErrors(current => ({ ...current, currency: undefined })) }} disabled={creating} aria-invalid={Boolean(errors.currency)} aria-describedby={errors.currency ? 'subscription-currency-error' : undefined} className={inputClass(errors.currency)}>
+                      {supportedCurrencies.map(item => <option key={item.code} value={item.code}>{item.flag} {item.code} — {item.label}</option>)}
+                    </select>
                     {errors.currency && <p id="subscription-currency-error" className="text-xs text-error mt-1">{errors.currency}</p>}
                   </div>
                   <div>
@@ -350,7 +357,7 @@ export default function Subscriptions({
                 <div className="rounded-xl border border-primary/15 bg-primary-light/40 p-4 mt-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-primary">Resumen</p>
                   <p className="text-sm text-gray-700 mt-1">{creatorId ? availableCreators.find(item => item.id === creatorId)?.name : 'Selecciona un creador'}</p>
-                  <p className="font-display font-800 text-lg text-gray-900 mt-1">{validAmount(amount) && validCurrency(currency) ? amountLabel(Number(amount), currency) : `${currency} 0`} al mes</p>
+                  <p className="font-display font-800 text-lg text-gray-900 mt-1">{validAmount(amount) && validCurrency(currency) ? amountLabel(Number(numericGoalValue(amount)), currency) : `${currency} 0`} al mes</p>
                 </div>
                 <button type="submit" disabled={creating || availableCreators.length === 0} className="w-full mt-5 rounded-xl bg-primary py-3 text-sm font-semibold text-white disabled:bg-gray-200 disabled:text-gray-500">
                   {creating ? 'Procesando primer cobro...' : 'Confirmar suscripción'}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type {
   Campaign,
+  CampaignSponsorRanking,
   CampaignSummary,
   CampaignUpdate,
   CampaignUpdateMedia,
@@ -82,6 +83,73 @@ function FundingStatusBadge({ campaign }: { campaign: Campaign }) {
       : <span className="inline-flex rounded-full bg-gray-50 border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600">Sin aportes aún</span>
   }
   return <span className="inline-flex rounded-full bg-gray-50 border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600">Modelo no disponible</span>
+}
+
+function rankingInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  return parts.slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || '—'
+}
+
+function SponsorRanking({ sponsors }: { sponsors: CampaignSponsorRanking[] }) {
+  const ranked = sponsors
+    .filter(sponsor => sponsor.sponsorName.trim() && Number.isFinite(sponsor.totalAmount) && sponsor.totalAmount > 0)
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .slice(0, 5)
+  const podium = ranked.slice(0, 3)
+  const following = ranked.slice(3, 5)
+
+  return (
+    <section className="border-t border-gray-100 pt-5 mt-5" aria-labelledby="sponsor-ranking-title">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Comunidad</p>
+          <h2 id="sponsor-ranking-title" className="font-display font-700 text-base text-gray-900 mt-0.5">Patrocinadores destacados</h2>
+        </div>
+        <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 21h8m-4-4v4M7 4h10v4a5 5 0 01-10 0V4zm0 2H4v1a4 4 0 004 4m9-5h3v1a4 4 0 01-4 4" />
+        </svg>
+      </div>
+
+      {ranked.length === 0 ? (
+        <p className="rounded-xl bg-gray-50 px-4 py-4 text-center text-xs text-gray-500">
+          El ranking aparecerá cuando haya patrocinadores.
+        </p>
+      ) : (
+        <>
+          <ol className="grid grid-cols-3 items-end gap-2" aria-label="Podio de patrocinadores">
+            {podium.map((sponsor, index) => {
+              const rank = index + 1
+              const visualOrder = rank === 1 ? 'order-2' : rank === 2 ? 'order-1' : 'order-3'
+              const podiumHeight = rank === 1 ? 'h-20' : rank === 2 ? 'h-14' : 'h-11'
+              const medal = rank === 1 ? 'bg-yellow-400 text-yellow-950' : rank === 2 ? 'bg-slate-200 text-slate-700' : 'bg-amber-700 text-white'
+              return (
+                <li key={sponsor.sponsorId} className={`${visualOrder} min-w-0 text-center`} aria-label={`${rank}. ${sponsor.sponsorName}`}>
+                  <div className={`mx-auto w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ring-4 ring-white shadow-sm ${rank === 1 ? 'bg-primary text-white' : 'bg-primary-light text-primary'}`} aria-hidden="true">
+                    {rankingInitials(sponsor.sponsorName)}
+                  </div>
+                  <p className="text-[11px] font-semibold text-gray-800 truncate mt-2" title={sponsor.sponsorName}>{sponsor.sponsorName}</p>
+                  <div className={`${podiumHeight} mt-2 rounded-t-xl bg-gradient-to-b from-primary-light to-primary-light/35 border border-primary/10 flex items-start justify-center pt-2`}>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-800 ${medal}`}>{rank}</span>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+          {following.length > 0 && (
+            <ol start={4} className="mt-3 space-y-2" aria-label="Posiciones cuatro y cinco">
+              {following.map((sponsor, index) => (
+                <li key={sponsor.sponsorId} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5">
+                  <span className="w-6 text-center text-xs font-800 text-gray-400">{index + 4}</span>
+                  <span className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-[10px] font-bold text-primary" aria-hidden="true">{rankingInitials(sponsor.sponsorName)}</span>
+                  <span className="min-w-0 truncate text-xs font-semibold text-gray-700">{sponsor.sponsorName}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
+      )}
+    </section>
+  )
 }
 
 function Projects({ campaigns, loading, error, navigate }: Pick<Props, 'campaigns' | 'loading' | 'error' | 'navigate'>) {
@@ -456,14 +524,25 @@ export default function CampaignPage(props: Props) {
     setDetailLoading(true)
     setDetailError('')
     void api.campaign(campaignId)
-      .then(result => { if (active) setCampaign(campaignOverride?.id === campaignId ? campaignOverride : result) })
+      .then(result => {
+        if (!active) return
+        setCampaign(campaignOverride?.id === campaignId
+          ? { ...result, ...campaignOverride, topSponsors: result.topSponsors ?? campaignOverride.topSponsors }
+          : result)
+      })
       .catch(requestError => { if (active) setDetailError(apiErrorMessage(requestError, 'No pudimos cargar la campaña.')) })
       .finally(() => { if (active) setDetailLoading(false) })
     return () => { active = false }
   }, [campaignId])
 
   useEffect(() => {
-    if (campaignOverride?.id === campaignId) setCampaign(campaignOverride)
+    if (campaignOverride?.id === campaignId) {
+      setCampaign(current => ({
+        ...current,
+        ...campaignOverride,
+        topSponsors: current?.topSponsors ?? campaignOverride.topSponsors,
+      }))
+    }
   }, [campaignId, campaignOverride])
 
   if (!campaignId) return <Projects campaigns={campaigns} loading={loading} error={error} navigate={navigate} />
@@ -483,6 +562,7 @@ export default function CampaignPage(props: Props) {
   const sortedRewards = [...campaign.rewards].sort((a, b) => a.minimumAmount - b.minimumAmount)
   const isFailedAllOrNothing = campaign.status === 'FAILED' && campaign.fundingModel === 'FIXED' && campaign.progress.raisedAmount < campaign.goalAmount
   const fundingModelLocked = campaign.fundingModelEditable === false || campaign.progress.sponsorsCount > 0
+  const sponsorRanking = campaign.topSponsors ?? []
   return (
     <div className="min-h-screen bg-bg">
       <button onClick={() => navigate('projects')} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 block text-sm text-gray-500 hover:text-primary">← Volver a explorar</button>
@@ -545,6 +625,7 @@ export default function CampaignPage(props: Props) {
                 <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="font-display font-700 text-xl">{campaign.progress.sponsorsCount}</p><p className="text-xs text-gray-500">Patrocinadores</p></div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center"><p className="font-display font-700 text-sm text-primary">{campaign.status}</p><p className="text-xs text-gray-500">Estado</p></div>
               </div>
+              <SponsorRanking sponsors={sponsorRanking} />
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tiempo restante</p>
               <Countdown initialSeconds={campaign.progress.secondsRemaining} />
               {!isFailedAllOrNothing && <button disabled={!canContribute} onClick={() => navigate('payment-flow', campaign.id)} className="w-full mt-6 bg-primary text-white rounded-xl py-3 text-sm font-semibold hover:bg-primary-hover disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed">{cta}</button>}

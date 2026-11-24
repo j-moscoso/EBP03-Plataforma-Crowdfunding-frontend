@@ -8,6 +8,7 @@ import {
   localDateInputValue,
   numericGoalValue,
 } from '../utils/campaignForm'
+import { supportedCurrencies } from '../utils/currencies'
 
 interface Props {
   navigate: (screen: Screen, id?: string | null) => void
@@ -47,15 +48,6 @@ interface Errors {
 }
 
 const categories = ['Tecnología', 'Medio ambiente', 'Arte', 'Salud', 'Educación', 'Comunidad', 'Ciencia', 'Emprendimiento']
-const currencies = [
-  { code: 'USD', flag: '🇺🇸', label: 'Dólar estadounidense' },
-  { code: 'EUR', flag: '🇪🇺', label: 'Euro' },
-  { code: 'COP', flag: '🇨🇴', label: 'Peso colombiano' },
-  { code: 'MXN', flag: '🇲🇽', label: 'Peso mexicano' },
-  { code: 'ARS', flag: '🇦🇷', label: 'Peso argentino' },
-  { code: 'CLP', flag: '🇨🇱', label: 'Peso chileno' },
-  { code: 'PEN', flag: '🇵🇪', label: 'Sol peruano' },
-] as const
 const validMoney = (value: string) => /^\d+(?:\.\d{1,2})?$/.test(value) && Number(value) > 0
 const rewardDescriptionLimit = 1000
 
@@ -116,7 +108,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
     if (!duration) next.duration = 'Este campo es obligatorio.'
     else if (!/^\d+$/.test(duration) || Number(duration) <= 0) next.duration = 'Ingresa una duración positiva en días.'
     if (!category) next.category = 'Este campo es obligatorio.'
-    if (!currencies.some(item => item.code === currency)) next.currency = 'Selecciona una moneda válida.'
+    if (!supportedCurrencies.some(item => item.code === currency)) next.currency = 'Selecciona una moneda válida.'
     if (fundingModel !== 'FIXED' && fundingModel !== 'FLEXIBLE') next.fundingModel = 'Selecciona un modelo de recaudación válido.'
     rewards.forEach(reward => {
       const rewardErrors: RewardErrors = {}
@@ -310,7 +302,7 @@ export default function CreateCampaign({ navigate, initialDraft, onSaveDraft, on
               <div>
                 <label className="block text-sm font-medium mb-1.5">Moneda *</label>
                 <select value={currency} onChange={event => { setCurrency(event.target.value); setErrors(current => ({ ...current, currency: undefined })) }} className={input(errors.currency)}>
-                  {currencies.map(item => <option key={item.code} value={item.code}>{item.flag} {item.code} — {item.label}</option>)}
+                  {supportedCurrencies.map(item => <option key={item.code} value={item.code}>{item.flag} {item.code} — {item.label}</option>)}
                 </select>
                 {errors.currency && <p className="text-xs text-error mt-1">{errors.currency}</p>}
               </div>

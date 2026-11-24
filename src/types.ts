@@ -179,6 +179,12 @@ export interface Progress {
   status: CampaignStatus
 }
 
+export interface CampaignSponsorRanking {
+  sponsorId: string
+  sponsorName: string
+  totalAmount: number
+}
+
 export interface Campaign {
   id: string
   title: string
@@ -199,6 +205,7 @@ export interface Campaign {
   tiers?: Tier[]
   updates: CampaignUpdate[]
   progress: Progress
+  topSponsors?: CampaignSponsorRanking[]
   refundedContributionsCount?: number
   currentUserIsCreator?: boolean
   fundingModelEditable?: boolean
@@ -222,7 +229,7 @@ export interface CampaignSummary {
   publishedAt?: string | null
   fundingModel: FundingModel
   refundedContributionsCount?: number
-  creator?: User
+  creator?: Pick<User, 'id' | 'name'>
 }
 
 export interface Draft {
